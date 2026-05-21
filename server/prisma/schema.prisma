@@ -1,0 +1,667 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum StudentStatus {
+  INTERNATIONAL
+  EU_EEA_SWISS
+  GERMAN
+  OTHER
+}
+
+enum BonusType {
+  NONE
+  DOUBLE
+  PERCENTAGE
+  FIXED
+  NIGHT_SHIFT
+  CUSTOM
+}
+
+enum ExpenseCategory {
+  GROCERIES
+  RENT
+  TRANSPORT
+  FOOD
+  STUDY
+  HEALTH
+  ENTERTAINMENT
+  BILLS
+  SHOPPING
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  PAYPAL
+  OTHER
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum AttendanceType {
+  MANDATORY
+  OPTIONAL
+  FLEXIBLE
+}
+
+enum Priority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum TaskType {
+  HOMEWORK
+  ASSIGNMENT
+  EXAM
+  PERSONAL
+  WORK
+  OTHER
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ShoppingStatus {
+  PENDING
+  BOUGHT
+  SKIPPED
+}
+
+enum ReminderType {
+  CLASS
+  TASK
+  GROCERY
+  CLEANING
+  WORK
+  EXPENSE
+  AI
+  CUSTOM
+}
+
+enum LinkedEntityType {
+  CLASS
+  TASK
+  GROCERY_ITEM
+  GROCERY_PURCHASE
+  SHOPPING_LIST_ITEM
+  CLEANING_TASK
+  WORK_SHIFT
+  EXPENSE
+  BUDGET
+  AI_INSIGHT
+  CUSTOM
+}
+
+enum AIInsightType {
+  EXPENSE_ADVICE
+  WEEKLY_SUMMARY
+  GROCERY_ADVICE
+  STUDY_PLAN
+  WORK_LIMIT_WARNING
+}
+
+enum SplitType {
+  EQUAL
+  CUSTOM
+}
+
+model User {
+  id                String        @id @default(cuid())
+  name              String
+  email             String        @unique
+  passwordHash      String
+  country           String        @default("DE")
+  studentStatus     StudentStatus @default(INTERNATIONAL)
+  hourlyWageDefault Decimal?      @db.Decimal(10, 2)
+  currency          String        @default("EUR")
+  avatarUrl         String?
+  university        String?
+  course            String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  refreshTokens     RefreshToken[]
+  settings          UserSettings?
+  companies         Company[]
+  workShifts        WorkShift[]
+  expenses          Expense[]
+  budgets           Budget[]
+  classSchedules    ClassSchedule[]
+  tasks             Task[]
+  groceryItems      GroceryItem[]
+  groceryPurchases  GroceryPurchase[]
+  shoppingListItems ShoppingListItem[]
+  cleaningTasks     CleaningTask[]
+  reminders         Reminder[]
+  aiInsights        AIInsight[]
+  splitGroups       SplitGroup[]       @relation("SplitGroupOwner")
+  splitMemberships  SplitMember[]      @relation("SplitMemberUser")
+  splitExpensesMade SplitExpense[]     @relation("SplitExpenseCreator")
+  splitSettlements  SplitSettlement[]  @relation("SplitSettlementCreator")
+
+  @@index([country, studentStatus])
+}
+
+model UserSettings {
+  id                       String   @id @default(cuid())
+  userId                   String   @unique
+  pushNotifications        Boolean  @default(true)
+  emailUpdates             Boolean  @default(false)
+  notifyClasses            Boolean  @default(true)
+  notifyTasks              Boolean  @default(true)
+  notifyWork               Boolean  @default(true)
+  notifyGroceries          Boolean  @default(true)
+  notifyCleaning           Boolean  @default(true)
+  notifySplitSettlements   Boolean  @default(true)
+  theme                    String   @default("SYSTEM")
+  language                 String   @default("en")
+  currency                 String   @default("EUR")
+  dateFormat               String   @default("DD.MM.YYYY")
+  timeFormat               String   @default("24H")
+  aiSuggestionsEnabled     Boolean  @default(true)
+  aiProviderStatus         String   @default("READY")
+  aiFormSuggestionsAllowed Boolean  @default(true)
+  aiSuggestionsCacheClearedAt DateTime?
+  workCountry              String   @default("DE")
+  yearlyWorkLimitDays      Int      @default(140)
+  defaultHourlyWage        Decimal? @db.Decimal(10, 2)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model WorkLimitPolicy {
+  id                 String        @id @default(cuid())
+  countryCode        String
+  studentStatus      StudentStatus
+  yearlyFullDayLimit Int           @default(140)
+  yearlyHalfDayLimit Int           @default(280)
+  halfDayMaxHours    Decimal       @default(4.0) @db.Decimal(5, 2)
+  weeklyLectureLimit Decimal?      @db.Decimal(5, 2)
+  effectiveFrom      DateTime      @db.Date
+  effectiveTo        DateTime?     @db.Date
+  sourceUrl          String?
+  notes              String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@index([countryCode, studentStatus, effectiveFrom])
+}
+
+model Company {
+  id                  String    @id @default(cuid())
+  userId              String
+  name                String
+  industry            String?
+  location            String?
+  contact             String?
+  phone               String?
+  email               String?
+  website             String?
+  defaultHourlyWage   Decimal?  @db.Decimal(10, 2)
+  defaultBreakMinutes Int       @default(0)
+  defaultBonusType    BonusType @default(NONE)
+  defaultBonusValue   Decimal?  @db.Decimal(10, 2)
+  color               String?
+  commonStartTime     DateTime? @db.Time(0)
+  commonEndTime       DateTime? @db.Time(0)
+  isArchived          Boolean   @default(false)
+  archivedAt          DateTime?
+  notes               String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workShifts WorkShift[]
+
+  @@index([userId])
+  @@index([userId, name])
+}
+
+model WorkShift {
+  id              String    @id @default(cuid())
+  userId          String
+  companyId       String?
+  jobName         String
+  date            DateTime  @db.Date
+  startTime       DateTime  @db.Time(0)
+  endTime         DateTime  @db.Time(0)
+  breakMinutes    Int       @default(0)
+  hourlyWage      Decimal   @db.Decimal(10, 2)
+  bonusType       BonusType @default(NONE)
+  bonusValue      Decimal?  @db.Decimal(10, 2)
+  isPublicHoliday Boolean   @default(false)
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, date])
+  @@index([companyId])
+}
+
+model Expense {
+  id            String          @id @default(cuid())
+  userId        String
+  title         String
+  amount        Decimal         @db.Decimal(10, 2)
+  category      ExpenseCategory
+  date          DateTime        @db.Date
+  paymentMethod PaymentMethod   @default(OTHER)
+  notes         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, date])
+  @@index([userId, category])
+}
+
+model Budget {
+  id        String           @id @default(cuid())
+  userId    String
+  year      Int
+  month     Int
+  week      Int?
+  category  ExpenseCategory?
+  amount    Decimal          @db.Decimal(10, 2)
+  notes     String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, year, month, category])
+  @@unique([userId, year, week, category])
+  @@index([userId])
+  @@index([userId, year, month])
+  @@index([userId, year, week])
+}
+
+model SplitGroup {
+  id          String    @id @default(cuid())
+  ownerUserId String    @map("userId")
+  name        String
+  description String?
+  currency    String    @default("EUR")
+  imageUrl    String?
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  owner       User              @relation("SplitGroupOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  members     SplitMember[]
+  expenses    SplitExpense[]
+  settlements SplitSettlement[]
+  activities  SplitActivity[]
+
+  @@index([ownerUserId])
+  @@index([archivedAt])
+}
+
+model SplitMember {
+  id               String   @id @default(cuid())
+  groupId          String
+  userId           String?
+  name             String
+  email            String?
+  avatarUrl        String?
+  isCurrentUser    Boolean  @default(false)
+  isRegisteredUser Boolean  @default(false)
+  role             String   @default("MEMBER")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  group           SplitGroup          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  registeredUser  User?               @relation("SplitMemberUser", fields: [userId], references: [id], onDelete: SetNull)
+  payerRecords    SplitExpensePayer[]
+  paidExpenses    SplitExpense[]      @relation("SplitExpensePaidByMember")
+  shares          SplitExpenseShare[]
+  settlementsFrom SplitSettlement[]   @relation("SettlementFromMember")
+  settlementsTo   SplitSettlement[]   @relation("SettlementToMember")
+
+  @@index([groupId])
+  @@index([userId])
+  @@index([groupId, userId])
+}
+
+model SplitExpense {
+  id              String    @id @default(cuid())
+  groupId         String
+  paidByMemberId  String
+  title           String
+  category        String?
+  amount          Decimal   @db.Decimal(10, 2)
+  amountCents     Int       @default(0)
+  currency        String    @default("EUR")
+  date            DateTime  @db.Date
+  splitType       SplitType @default(EQUAL)
+  notes           String?
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  group     SplitGroup           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  paidBy    SplitMember          @relation("SplitExpensePaidByMember", fields: [paidByMemberId], references: [id], onDelete: Cascade)
+  createdBy User?                @relation("SplitExpenseCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  payers    SplitExpensePayer[]
+  shares    SplitExpenseShare[]
+
+  @@index([groupId])
+  @@index([paidByMemberId])
+  @@index([createdByUserId])
+  @@index([date])
+}
+
+model SplitExpensePayer {
+  id          String   @id @default(cuid())
+  expenseId   String
+  memberId    String
+  amountCents Int
+  createdAt   DateTime @default(now())
+
+  expense SplitExpense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  member  SplitMember  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, memberId])
+  @@index([expenseId])
+  @@index([memberId])
+}
+
+model SplitExpenseShare {
+  id             String   @id @default(cuid())
+  splitExpenseId String
+  memberId       String
+  amount         Decimal  @db.Decimal(10, 2)
+  amountCents    Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  expense SplitExpense @relation(fields: [splitExpenseId], references: [id], onDelete: Cascade)
+  member  SplitMember  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([splitExpenseId, memberId])
+  @@index([splitExpenseId])
+  @@index([memberId])
+}
+
+model SplitSettlement {
+  id              String   @id @default(cuid())
+  groupId         String
+  fromMemberId    String
+  toMemberId      String
+  amount          Decimal  @db.Decimal(10, 2)
+  amountCents     Int      @default(0)
+  currency        String   @default("EUR")
+  date            DateTime @db.Date
+  notes           String?
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  group      SplitGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  fromMember SplitMember @relation("SettlementFromMember", fields: [fromMemberId], references: [id], onDelete: Cascade)
+  toMember   SplitMember @relation("SettlementToMember", fields: [toMemberId], references: [id], onDelete: Cascade)
+  createdBy  User?       @relation("SplitSettlementCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([groupId])
+  @@index([fromMemberId])
+  @@index([toMemberId])
+  @@index([createdByUserId])
+  @@index([date])
+}
+
+model SplitActivity {
+  id        String   @id @default(cuid())
+  groupId   String
+  type      String
+  message   String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  group SplitGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
+  @@index([createdAt])
+}
+
+model ClassSchedule {
+  id                    String         @id @default(cuid())
+  userId                String
+  courseName            String
+  professorName         String?
+  dayOfWeek             DayOfWeek
+  startTime             DateTime       @db.Time(0)
+  endTime               DateTime       @db.Time(0)
+  location              String?
+  attendanceType        AttendanceType @default(FLEXIBLE)
+  priority              Priority       @default(MEDIUM)
+  reminderMinutesBefore Int?
+  notes                 String?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks Task[]
+
+  @@index([userId])
+  @@index([userId, dayOfWeek])
+}
+
+model Task {
+  id                  String     @id @default(cuid())
+  userId              String
+  title               String
+  description         String?
+  type                TaskType   @default(OTHER)
+  dueDate             DateTime?
+  priority            Priority   @default(MEDIUM)
+  status              TaskStatus @default(TODO)
+  reminderAt          DateTime?
+  calendarSyncEnabled Boolean    @default(false)
+  calendarEventId     String?
+  linkedClassId       String?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedClass ClassSchedule? @relation(fields: [linkedClassId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, dueDate])
+  @@index([userId, status])
+  @@index([linkedClassId])
+}
+
+model GroceryItem {
+  id                 String   @id @default(cuid())
+  userId             String
+  name               String
+  category           String?
+  defaultQuantity    String?
+  estimatedDaysLasts Int?
+  isEssential        Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purchases         GroceryPurchase[]
+  shoppingListItems ShoppingListItem[]
+
+  @@index([userId])
+  @@index([userId, name])
+}
+
+model GroceryPurchase {
+  id                 String    @id @default(cuid())
+  userId             String
+  groceryItemId      String
+  storeName          String?
+  price              Decimal   @db.Decimal(10, 2)
+  quantity           String
+  purchaseDate       DateTime  @db.Date
+  expectedFinishDate DateTime? @db.Date
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groceryItem GroceryItem @relation(fields: [groceryItemId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([groceryItemId])
+  @@index([userId, purchaseDate])
+}
+
+model ShoppingListItem {
+  id            String         @id @default(cuid())
+  userId        String
+  groceryItemId String
+  quantity      String
+  status        ShoppingStatus @default(PENDING)
+  reminderDate  DateTime?      @db.Date
+  boughtAt      DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groceryItem GroceryItem @relation(fields: [groceryItemId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([groceryItemId])
+}
+
+model CleaningTask {
+  id              String    @id @default(cuid())
+  userId          String
+  title           String
+  intervalDays    Int
+  lastCompletedAt DateTime?
+  nextReminderAt  DateTime?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, nextReminderAt])
+}
+
+model Reminder {
+  id               String            @id @default(cuid())
+  userId           String
+  title            String
+  message          String?
+  type             ReminderType
+  scheduledAt      DateTime
+  isCompleted      Boolean           @default(false)
+  completedAt      DateTime?
+  linkedEntityType LinkedEntityType?
+  linkedEntityId   String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, scheduledAt])
+  @@index([userId, isCompleted])
+  @@index([linkedEntityType, linkedEntityId])
+}
+
+model AIInsight {
+  id           String        @id @default(cuid())
+  userId       String
+  type         AIInsightType
+  provider     String
+  model        String?
+  promptHash   String?
+  inputSummary Json
+  content      String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, type])
+  @@index([createdAt])
+}
+
+model Coupon {
+  id          String    @id @default(cuid())
+  title       String
+  code        String?
+  discount    String
+  description String?
+  terms       String?
+  url         String?
+  expiresAt   DateTime?
+  source      String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([isActive])
+  @@index([expiresAt])
+}
+
+model Event {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  startsAt    DateTime
+  endsAt      DateTime?
+  location    String?
+  organizer   String?
+  url         String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([isActive, startsAt])
+}

@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "StudentKit",
+    "slug": "student-kit",
+    "version": "0.1.0",
+    "entryPoint": "./index.ts",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "studentkit",
+    "icon": "./images/icons/logo.png",
+    "splash": {
+      "image": "./images/icons/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#EAFBE7"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "icon": "./images/icons/logo.png",
+      "supportsTablet": true,
+      "bundleIdentifier": "com.studentkit.app"
+    },
+    "android": {
+      "package": "com.studentkit.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./images/icons/logo.png",
+        "backgroundColor": "#EAFBE7"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "extra": {}
+  }
+}

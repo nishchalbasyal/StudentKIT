@@ -1,0 +1,771 @@
+import { useMemo, useState } from "react";
+import {
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  Vibration,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { AppTopBar } from "../../components/ui/AppTopBar";
+import { QuickCaptureModal } from "../../components/home/QuickCaptureModal";
+import {
+  QuickViewSwitcher,
+  type QuickViewFeature,
+} from "../../components/home/QuickViewSwitcher";
+import {
+  QuickViewCard,
+  type QuickViewCardData,
+} from "../../components/home/QuickViewCard";
+import { ErrorState } from "../../components/ui/ErrorState";
+import { LoadingState } from "../../components/ui/LoadingState";
+import {
+  colors,
+  fontSize,
+  radius,
+  shadows,
+  spacing,
+} from "../../constants/colors";
+import { useHomeSummary } from "../../hooks/useHomeSummary";
+import type { RootStackParamList } from "../../navigation/types";
+import { useAuthStore } from "../../store/authStore";
+import { formatCurrency } from "../../utils/formatCurrency";
+
+type Navigation = NativeStackNavigationProp<RootStackParamList>;
+
+const week = [
+  { day: "Mon", date: 11, dots: ["work"] },
+  { day: "Tue", date: 12, dots: [] },
+  { day: "Wed", date: 13, dots: ["task"] },
+  { day: "Thu", date: 14, dots: [] },
+  { day: "Fri", date: 15, dots: ["money"] },
+  { day: "Sat", date: 16, dots: [] },
+  { day: "Sun", date: 17, dots: ["task", "work"] },
+];
+
+export function DashboardScreen() {
+  const navigation = useNavigation<Navigation>();
+  const user = useAuthStore((state) => state.user);
+  const home = useHomeSummary(user?.currency);
+  const [quickCaptureVisible, setQuickCaptureVisible] = useState(false);
+  const [dateSheetVisible, setDateSheetVisible] = useState(false);
+  const [selectedSwipe, setSelectedSwipe] = useState(0);
+
+  const quickActions = useMemo(
+    () => [
+      {
+        id: "expense",
+        title: "Add Expense",
+        subtitle: "Track spending",
+        icon: "card-outline" as const,
+        onPress: () => navigation.navigate("AddExpense"),
+      },
+      {
+        id: "work",
+        title: "Add Work Entry",
+        subtitle: "Log hours",
+        icon: "briefcase-outline" as const,
+        onPress: () => navigation.navigate("AddWorkShift"),
+      },
+      {
+        id: "task",
+        title: "Add Task",
+        subtitle: "Capture deadline",
+        icon: "create-outline" as const,
+        onPress: () => navigation.navigate("AddTask"),
+      },
+      {
+        id: "grocery",
+        title: "Add Grocery",
+        subtitle: "Update list",
+        icon: "basket-outline" as const,
+        onPress: () => navigation.navigate("AddGroceryItem"),
+      },
+      {
+        id: "cleaning",
+        title: "Add Cleaning",
+        subtitle: "Update routine",
+        icon: "sparkles-outline" as const,
+        onPress: () => navigation.navigate("Cleaning"),
+      },
+      {
+        id: "reminder",
+        title: "Add Reminder",
+        subtitle: "Remember later",
+        icon: "notifications-outline" as const,
+        onPress: () => navigation.navigate("AddTask"),
+      },
+    ],
+    [navigation],
+  );
+
+  if (home.isLoading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <LoadingState label="Loading your day" />
+      </SafeAreaView>
+    );
+  }
+
+  if (home.isError || !home.dashboard.data) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.center}>
+          <ErrorState
+            message="Could not load your day."
+            onRetry={() => void home.dashboard.refetch()}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const dashboard = home.dashboard.data;
+  const workSummary = home.monthlySummary.data;
+  const moneyLeft = Math.max(
+    0,
+    120 - Math.round((dashboard.month.expenses || 38) / 30),
+  );
+  const firstName = user?.name?.split(" ")[0] ?? "Nishchal";
+  const swipeCards = [
+    {
+      title: "Work Hours",
+      subtitle: "You are on track this month",
+      icon: "briefcase-outline" as const,
+      stats: [
+        `${workSummary?.totalHours ?? 42}h worked`,
+        `${formatCurrency(workSummary?.totalIncome ?? 590, user?.currency)} earned`,
+        "98 / 140 days left",
+      ],
+      action: "Tap to add/view",
+      color: colors.softGreen,
+      onPress: () => navigation.navigate("AddWorkShift"),
+      onOptions: () =>
+        Alert.alert("Work Options", "Choose an action", [
+          {
+            text: "Add Work",
+            onPress: () => navigation.navigate("AddWorkShift"),
+          },
+          {
+            text: "View Summary",
+            onPress: () => navigation.navigate("WorkSummary"),
+          },
+          {
+            text: "View Companies",
+            onPress: () => navigation.navigate("WorkHistory"),
+          },
+          { text: "Cancel", style: "cancel" },
+        ]),
+    },
+    {
+      title: "Money",
+      subtitle: "Your spending is okay",
+      icon: "wallet-outline" as const,
+      stats: [
+        `Income ${formatCurrency(dashboard.month.income || 842, user?.currency)}`,
+        `Expenses ${formatCurrency(dashboard.month.expenses || 521, user?.currency)}`,
+        `Saved ${formatCurrency(dashboard.month.savings || 321, user?.currency)}`,
+      ],
+      action: "Tap to add expense",
+      color: colors.infoSoft,
+      onPress: () => navigation.navigate("AddExpense"),
+      onOptions: () =>
+        Alert.alert("Money Options", "Choose an action", [
+          {
+            text: "Add Expense",
+            onPress: () => navigation.navigate("AddExpense"),
+          },
+          {
+            text: "View Report",
+            onPress: () => navigation.navigate("ExpenseReport"),
+          },
+          {
+            text: "Budget Settings",
+            onPress: () => navigation.navigate("BudgetSettings"),
+          },
+          { text: "Cancel", style: "cancel" },
+        ]),
+    },
+    {
+      title: "Tasks",
+      subtitle: `${dashboard.todayTasks.length || 2} important things today`,
+      icon: "checkmark-circle-outline" as const,
+      stats: ["1 assignment due", "1 class reminder"],
+      action: "Tap to plan today",
+      color: "#FFF7ED",
+      onPress: () => navigation.navigate("AddTask"),
+      onOptions: () =>
+        Alert.alert("Tasks Options", "Choose an action", [
+          { text: "Add Task", onPress: () => navigation.navigate("AddTask") },
+          {
+            text: "View Today",
+            onPress: () => navigation.navigate("Main", { screen: "Tasks" }),
+          },
+          {
+            text: "View Reminders",
+            onPress: () =>
+              navigation.navigate("ReminderDetail", { title: "Reminders" }),
+          },
+          { text: "Cancel", style: "cancel" },
+        ]),
+    },
+    {
+      title: "Groceries",
+      subtitle: "Milk may finish today",
+      icon: "basket-outline" as const,
+      stats: ["5 items in list", "Last store: Aldi"],
+      action: "Tap to update list",
+      color: "#F0FDF4",
+      onPress: () => navigation.navigate("Groceries"),
+      onOptions: () =>
+        Alert.alert("Grocery Options", "Choose an action", [
+          {
+            text: "Add Item",
+            onPress: () => navigation.navigate("AddGroceryItem"),
+          },
+          {
+            text: "View List",
+            onPress: () => navigation.navigate("Groceries"),
+          },
+          {
+            text: "Price History",
+            onPress: () => navigation.navigate("Groceries"),
+          },
+          { text: "Cancel", style: "cancel" },
+        ]),
+    },
+    {
+      title: "Cleaning",
+      subtitle: "Floor cleaning overdue",
+      icon: "sparkles-outline" as const,
+      stats: ["Last done 9 days ago", "2 tasks left"],
+      action: "Tap to mark done",
+      color: "#FEF3C7",
+      onPress: () => navigation.navigate("Cleaning"),
+      onOptions: () =>
+        Alert.alert("Cleaning Options", "Choose an action", [
+          {
+            text: "View Routine",
+            onPress: () => navigation.navigate("Cleaning"),
+          },
+          {
+            text: "Edit Routine",
+            onPress: () => navigation.navigate("AddEditCleaningRoutine"),
+          },
+          { text: "Cancel", style: "cancel" },
+        ]),
+    },
+    {
+      title: "Smart Suggestion",
+      subtitle: "Based on your habits",
+      icon: "sparkles-outline" as const,
+      stats: ["You usually buy eggs every 6 days."],
+      action: "Add to shopping list",
+      color: "#F5F3FF",
+      onPress: () => navigation.navigate("AIAssistant"),
+      onOptions: () => navigation.navigate("AIAssistant"),
+    },
+    {
+      title: "May Goal",
+      subtitle: "Save EUR 200 this month",
+      icon: "flag-outline" as const,
+      stats: ["EUR 145 / EUR 200"],
+      action: "Keep going",
+      color: colors.softGreen,
+      onPress: () => navigation.navigate("BudgetSettings"),
+      onOptions: () => navigation.navigate("BudgetSettings"),
+    },
+  ];
+
+  const feed = [
+    {
+      title: "AI Tip",
+      body: "You usually forget laundry after 8 days. Add reminder?",
+      action: "Add Reminder",
+      route: "AIAssistant" as const,
+    },
+    {
+      title: "Monthly Goal",
+      body: "Save EUR 200",
+      progress: "EUR 145 / EUR 200",
+      route: "Main" as const,
+    },
+    {
+      title: "Student Event",
+      body: "Career Night is on 22 May at Campus Hall A.",
+      action: "View Event",
+      route: "EventDetails" as const,
+    },
+    {
+      title: "Coupon",
+      body: "Aldi has a student grocery offer this week.",
+      action: "View Coupon",
+      route: "CouponDetails" as const,
+    },
+  ].slice(0, 8);
+
+  function openQuickAdd() {
+    Vibration.vibrate(10);
+    setQuickCaptureVisible(true);
+  }
+
+  return (
+    <SafeAreaView edges={["top"]} style={styles.safe}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <AppTopBar
+          title="StudentKit"
+          avatarText={user?.name ?? "ST"}
+          onMagicPress={() => navigation.navigate("AIAssistant")}
+          onSearchPress={() => navigation.navigate("GlobalSearch")}
+        />
+
+        <View style={styles.greetingCard}>
+          <Text style={styles.greeting}>Good morning, {firstName}</Text>
+          <Text style={styles.greetingSub}>Your day is ready.</Text>
+          <Text style={styles.greetingMeta}>
+            {dashboard.todayTasks.length || 2} tasks ·{" "}
+            {formatCurrency(moneyLeft, user?.currency)} left · 1 work shift
+          </Text>
+        </View>
+
+        <View style={styles.calendarCard}>
+          <View style={styles.calendarHeader}>
+            <Text style={styles.sectionTitle}>May 2026</Text>
+            <Ionicons
+              name="ellipsis-horizontal"
+              size={20}
+              color={colors.muted}
+            />
+          </View>
+          <View style={styles.weekRow}>
+            {week.map((item) => (
+              <Pressable
+                key={item.date}
+                onPress={() => setDateSheetVisible(true)}
+                onLongPress={() => navigation.navigate("GlobalSearch")}
+                style={[styles.dayCell, item.date === 17 && styles.daySelected]}
+              >
+                <Text
+                  style={[
+                    styles.dayName,
+                    item.date === 17 && styles.daySelectedText,
+                  ]}
+                >
+                  {item.day}
+                </Text>
+                <Text
+                  style={[
+                    styles.dayNumber,
+                    item.date === 17 && styles.daySelectedText,
+                  ]}
+                >
+                  {item.date}
+                </Text>
+                <View style={styles.dots}>
+                  {item.dots.map((dot) => (
+                    <View key={dot} style={styles.dot} />
+                  ))}
+                </View>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.calendarHint}>Tap date to add something</Text>
+        </View>
+
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={(event) =>
+            setSelectedSwipe(
+              Math.round(
+                event.nativeEvent.contentOffset.x /
+                  event.nativeEvent.layoutMeasurement.width,
+              ),
+            )
+          }
+        >
+          {swipeCards.map((card) => (
+            <Pressable
+              key={card.title}
+              style={({ pressed }) => [
+                styles.swipeCard,
+                { backgroundColor: card.color },
+                pressed && styles.pressed,
+              ]}
+              onPress={card.onPress}
+              onLongPress={card.onOptions}
+            >
+              <View style={styles.swipeTop}>
+                <View>
+                  <Text style={styles.kicker}>{card.title.toUpperCase()}</Text>
+                  <Text style={styles.swipeSubtitle}>{card.subtitle}</Text>
+                </View>
+                <View style={styles.bigIcon}>
+                  <Ionicons name={card.icon} size={32} color={colors.primary} />
+                </View>
+              </View>
+              <View style={styles.statList}>
+                {card.stats.map((stat) => (
+                  <Text key={stat} style={styles.statText}>
+                    {stat}
+                  </Text>
+                ))}
+              </View>
+              <Text style={styles.actionText}>{card.action}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+        <View style={styles.indicatorRow}>
+          {swipeCards.map((card, index) => (
+            <View
+              key={card.title}
+              style={[
+                styles.indicator,
+                selectedSwipe === index && styles.indicatorActive,
+              ]}
+            />
+          ))}
+        </View>
+
+        {feed.map((item) => (
+          <Pressable
+            key={item.title}
+            style={({ pressed }) => [
+              styles.feedCard,
+              pressed && styles.pressed,
+            ]}
+            onPress={() => navigation.navigate(item.route as never)}
+          >
+            <Text style={styles.feedTitle}>{item.title}</Text>
+            <Text style={styles.feedBody}>{item.body}</Text>
+            {item.progress ? (
+              <View style={styles.progress}>
+                <View style={styles.progressFill} />
+              </View>
+            ) : null}
+            {item.progress ? (
+              <Text style={styles.feedMeta}>{item.progress}</Text>
+            ) : null}
+            {item.action ? (
+              <Text style={styles.feedAction}>{item.action}</Text>
+            ) : null}
+          </Pressable>
+        ))}
+        <Text style={styles.caughtUp}>You are all caught up.</Text>
+      </ScrollView>
+
+      <Pressable
+        style={({ pressed }) => [styles.fab, pressed && styles.pressed]}
+        onPress={openQuickAdd}
+      >
+        <Ionicons name="add" size={28} color="#FFFFFF" />
+      </Pressable>
+      <QuickCaptureModal
+        visible={quickCaptureVisible}
+        onClose={() => setQuickCaptureVisible(false)}
+        actions={quickActions}
+        onAddWithAI={() => navigation.navigate("AIAssistant")}
+      />
+      <DateQuickAdd
+        visible={dateSheetVisible}
+        onClose={() => setDateSheetVisible(false)}
+        navigation={navigation}
+      />
+    </SafeAreaView>
+  );
+}
+
+function DateQuickAdd({
+  visible,
+  onClose,
+  navigation,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  navigation: Navigation;
+}) {
+  const options = [
+    {
+      label: "Add Work Shift",
+      icon: "briefcase-outline" as const,
+      action: () => navigation.navigate("AddWorkShift"),
+    },
+    {
+      label: "Add Class",
+      icon: "school-outline" as const,
+      action: () => navigation.navigate("AddTask"),
+    },
+    {
+      label: "Add Task",
+      icon: "checkmark-circle-outline" as const,
+      action: () => navigation.navigate("AddTask"),
+    },
+    {
+      label: "Add Expense",
+      icon: "cash-outline" as const,
+      action: () => navigation.navigate("AddExpense"),
+    },
+    {
+      label: "Add Reminder",
+      icon: "notifications-outline" as const,
+      action: () => navigation.navigate("AddTask"),
+    },
+  ];
+  return (
+    <Modal
+      transparent
+      visible={visible}
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+        <Pressable style={styles.dateSheet}>
+          <View style={styles.handle} />
+          <Text style={styles.sheetTitle}>Add for 17 May</Text>
+          {options.map((option) => (
+            <Pressable
+              key={option.label}
+              style={styles.sheetRow}
+              onPress={() => {
+                onClose();
+                option.action();
+              }}
+            >
+              <Ionicons name={option.icon} size={22} color={colors.primary} />
+              <Text style={styles.sheetRowText}>{option.label}</Text>
+            </Pressable>
+          ))}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
+  center: { flex: 1, justifyContent: "center", padding: spacing.lg },
+  content: { padding: spacing.lg, paddingBottom: 96, gap: spacing.md },
+  greetingCard: {
+    borderRadius: radius.xl,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    gap: 4,
+    ...shadows.soft,
+  },
+  greeting: { color: colors.text, fontSize: 20, fontWeight: "700" },
+  greetingSub: { color: colors.muted, fontSize: fontSize.bodyLarge },
+  greetingMeta: {
+    color: colors.primary,
+    fontSize: fontSize.caption,
+    fontWeight: "700",
+    marginTop: spacing.xs,
+  },
+  calendarCard: {
+    minHeight: 132,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  calendarHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  sectionTitle: {
+    color: colors.text,
+    fontSize: fontSize.section,
+    fontWeight: "700",
+  },
+  weekRow: { flexDirection: "row", justifyContent: "space-between" },
+  dayCell: {
+    width: 42,
+    minHeight: 62,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+  },
+  daySelected: {
+    backgroundColor: colors.softGreen,
+    borderWidth: 1,
+    borderColor: colors.action,
+  },
+  dayName: { color: colors.muted, fontSize: 11, fontWeight: "700" },
+  dayNumber: {
+    color: colors.text,
+    fontSize: fontSize.bodyLarge,
+    fontWeight: "700",
+  },
+  daySelectedText: { color: colors.primary },
+  dots: { height: 8, flexDirection: "row", gap: 2 },
+  dot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.primary,
+  },
+  calendarHint: { color: colors.muted, fontSize: fontSize.caption },
+  swipeCard: {
+    width: 330,
+    height: 224,
+    marginRight: spacing.md,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  pressed: { transform: [{ scale: 0.98 }], opacity: 0.88 },
+  swipeTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
+  kicker: {
+    color: colors.primary,
+    fontSize: fontSize.badge,
+    fontWeight: "800",
+  },
+  swipeSubtitle: {
+    color: colors.text,
+    fontSize: fontSize.cardTitle,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+  bigIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statList: { gap: spacing.xs },
+  statText: {
+    color: colors.text,
+    fontSize: fontSize.bodyLarge,
+    fontWeight: "600",
+  },
+  actionText: {
+    color: colors.primary,
+    fontSize: fontSize.caption,
+    fontWeight: "800",
+  },
+  indicatorRow: { flexDirection: "row", justifyContent: "center", gap: 6 },
+  indicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.border,
+  },
+  indicatorActive: { width: 18, backgroundColor: colors.primary },
+  feedCard: {
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    gap: spacing.xs,
+  },
+  feedTitle: {
+    color: colors.text,
+    fontSize: fontSize.cardTitle,
+    fontWeight: "700",
+  },
+  feedBody: { color: colors.muted, fontSize: fontSize.body, lineHeight: 20 },
+  feedAction: {
+    color: colors.primary,
+    fontSize: fontSize.body,
+    fontWeight: "700",
+    marginTop: spacing.xs,
+  },
+  feedMeta: {
+    color: colors.muted,
+    fontSize: fontSize.caption,
+    fontWeight: "600",
+  },
+  progress: {
+    height: 8,
+    borderRadius: radius.pill,
+    backgroundColor: colors.border,
+    overflow: "hidden",
+    marginTop: spacing.xs,
+  },
+  progressFill: { width: "72%", height: 8, backgroundColor: colors.action },
+  caughtUp: {
+    textAlign: "center",
+    color: colors.muted,
+    fontSize: fontSize.caption,
+    fontWeight: "600",
+    paddingVertical: spacing.md,
+  },
+  fab: {
+    position: "absolute",
+    right: spacing.lg,
+    bottom: 76,
+    width: 56,
+    height: 56,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    ...shadows.soft,
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(17,24,39,0.28)",
+  },
+  dateSheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
+    padding: spacing.xxl,
+    gap: spacing.sm,
+  },
+  handle: {
+    alignSelf: "center",
+    width: 60,
+    height: 5,
+    borderRadius: radius.pill,
+    backgroundColor: colors.border,
+    marginBottom: spacing.md,
+  },
+  sheetTitle: {
+    color: colors.text,
+    fontSize: fontSize.title,
+    fontWeight: "700",
+    marginBottom: spacing.sm,
+  },
+  sheetRow: {
+    minHeight: 58,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  sheetRowText: {
+    color: colors.text,
+    fontSize: fontSize.bodyLarge,
+    fontWeight: "700",
+  },
+});

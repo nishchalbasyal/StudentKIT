@@ -1,0 +1,25 @@
+{
+  "name": "student-kit-app",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Monorepo for the Student Kit App for international students in Germany.",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "server"
+  ],
+  "scripts": {
+    "start": "npm run dev:mobile",
+    "android": "npm --workspace @student-kit/mobile run android",
+    "ios": "npm --workspace @student-kit/mobile run ios",
+    "dev:server": "npm --workspace server run dev",
+    "dev:web": "npm --workspace @student-kit/mobile run web",
+    "dev:mobile": "npm --workspace @student-kit/mobile run start",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  }
+}

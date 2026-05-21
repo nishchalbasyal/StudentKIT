@@ -1,0 +1,41 @@
+export type Company = {
+  id: string;
+  userId: string;
+  name: string;
+  industry?: string | null;
+  location?: string | null;
+  contact?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  defaultHourlyWage?: number | null;
+  defaultBreakMinutes: number;
+  defaultBonusType: "NONE" | "DOUBLE" | "PERCENTAGE" | "FIXED" | "NIGHT_SHIFT" | "CUSTOM";
+  defaultBonusValue?: number | null;
+  color?: string | null;
+  commonStartTime?: string | null;
+  commonEndTime?: string | null;
+  isArchived: boolean;
+  archivedAt?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CompanyInput = {
+  name: string;
+  industry?: string | null;
+  location?: string | null;
+  contact?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  defaultHourlyWage?: number | null;
+  defaultBreakMinutes?: number;
+  defaultBonusType?: "NONE" | "DOUBLE" | "PERCENTAGE" | "FIXED" | "NIGHT_SHIFT" | "CUSTOM";
+  defaultBonusValue?: number | null;
+  color?: string | null;
+  commonStartTime?: string | null;
+  commonEndTime?: string | null;
+  notes?: string | null;
+};

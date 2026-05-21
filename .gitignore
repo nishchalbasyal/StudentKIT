@@ -1,0 +1,104 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.*
+
+# Build outputs
+dist/
+build/
+out/
+coverage/
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Local secrets and service credentials
+client_secret*.json
+google-services.json
+GoogleService-Info.plist
+*.pem
+*.key
+*.p12
+*.keystore
+*.jks
+*.mobileprovision
+
+# Expo / React Native
+.expo/
+.expo-shared/
+.metro-cache/
+.watchmanconfig
+*.jsbundle
+apps/mobile/.expo-start.*.log
+
+# Android / Gradle
+.gradle/
+.cxx/
+local.properties
+*.iml
+*.hprof
+captures/
+apps/mobile/android/**/build/
+apps/mobile/android/.gradle/
+apps/mobile/android/.cxx/
+apps/mobile/android/local.properties
+apps/mobile/android/app/debug.keystore
+apps/mobile/android-keystores/
+
+# Prisma / local data
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+prisma/dev.db*
+server/prisma/dev.db*
+
+# Package manager caches
+.npm/
+.yarn/*
+!.yarn/patches/
+!.yarn/plugins/
+!.yarn/releases/
+!.yarn/sdks/
+!.yarn/versions/
+.pnpm-store/
+
+# Test and tool caches
+.cache/
+.parcel-cache/
+.turbo/
+.eslintcache
+.stylelintcache
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+
+
+# Local assistant/project context
+.dev-context/
+.dev-context.md
+**/.dev-context.md
+client_secret_230557035905-ckgt65316n8nlmgf63r2cg8niqlkg6dv.apps.googleusercontent.com.json
+google-services.json
