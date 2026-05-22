@@ -1,64 +1,121 @@
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { AppCard } from "../ui/AppCard";
-import { colors, spacing } from "../../constants/colors";
-import type { WorkLimitUsage } from "../../types/work.types";
+import { colors, radius, spacing } from "../../constants/colors";
+import type { WorkLimitOverview } from "../../utils/workLimit";
 
-export function WorkLimitCard({ usage }: { usage: WorkLimitUsage }) {
-  const percent = Math.min(Math.max(usage.percentUsed, 0), 100);
+export function WorkLimitCard({
+  overview,
+  onPress,
+}: {
+  overview: WorkLimitOverview;
+  onPress?: () => void;
+}) {
+  const percent = Math.min(Math.max(overview.percentUsed, 0), 100);
   const statusColor =
-    usage.warningLevel === "exceeded" || usage.warningLevel === "critical"
+    overview.statusTone === "danger"
       ? colors.danger
-      : usage.warningLevel === "near"
+      : overview.statusTone === "warning"
         ? colors.warning
-        : colors.success;
+        : overview.statusTone === "success"
+          ? colors.success
+          : colors.muted;
+
+  const Container = onPress ? Pressable : View;
 
   return (
-    <AppCard title="German student work limit">
-      <View style={styles.row}>
-        <Text style={styles.value}>{usage.remainingFullDayUnits} days left</Text>
-        <Text style={[styles.status, { color: statusColor }]}>{usage.warningLevel}</Text>
-      </View>
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${percent}%`, backgroundColor: statusColor }]} />
-      </View>
-      <Text style={styles.meta}>
-        {usage.usedFullDayUnits} of {usage.limitFullDayUnits} full-day units used this year.
-      </Text>
-    </AppCard>
+    <Container
+      accessibilityRole={onPress ? "button" : undefined}
+      onPress={onPress}
+      style={({ pressed }: { pressed: boolean }) => [
+        styles.cardWrap,
+        pressed && onPress && styles.pressed,
+      ]}
+    >
+      <AppCard title={overview.title} subtitle={overview.description}>
+        <View style={styles.headerRow}>
+          <View style={styles.stack}>
+            <Text style={styles.limit}>{overview.limitLabel}</Text>
+            <Text style={[styles.status, { color: statusColor }]}>
+              {overview.statusLabel}
+            </Text>
+          </View>
+          <Text style={[styles.percent, { color: statusColor }]}>
+            {Math.round(percent)}%
+          </Text>
+        </View>
+        <View style={styles.progressTrack}>
+          <View
+            style={[
+              styles.progressFill,
+              { width: `${percent}%`, backgroundColor: statusColor },
+            ]}
+          />
+        </View>
+        {overview.usedLabel ? (
+          <Text style={styles.meta}>{overview.usedLabel}</Text>
+        ) : null}
+        {overview.remainingLabel ? (
+          <Text style={styles.meta}>{overview.remainingLabel}</Text>
+        ) : null}
+        {overview.monthlyAllowedLabel ? (
+          <Text style={styles.meta}>{overview.monthlyAllowedLabel}</Text>
+        ) : null}
+        <Text style={[styles.action, { color: colors.primary }]}>
+          {overview.actionLabel}
+        </Text>
+      </AppCard>
+    </Container>
   );
 }
 
 const styles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between"
+  cardWrap: {
+    borderRadius: radius.lg,
   },
-  value: {
+  pressed: { opacity: 0.88, transform: [{ scale: 0.99 }] },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: spacing.md,
+  },
+  stack: {
+    flex: 1,
+    gap: 2,
+  },
+  limit: {
     color: colors.text,
     fontSize: 20,
-    fontWeight: "900"
+    fontWeight: "900",
   },
   status: {
     fontSize: 13,
     fontWeight: "900",
-    textTransform: "uppercase"
+    textTransform: "uppercase",
+  },
+  percent: {
+    fontSize: 18,
+    fontWeight: "900",
   },
   progressTrack: {
     height: 10,
     borderRadius: 999,
     overflow: "hidden",
     backgroundColor: colors.surfaceMuted,
-    marginTop: spacing.xs
+    marginTop: spacing.xs,
   },
   progressFill: {
     height: "100%",
-    borderRadius: 999
+    borderRadius: 999,
   },
   meta: {
     color: colors.muted,
     fontSize: 13,
-    lineHeight: 18
-  }
+    lineHeight: 18,
+  },
+  action: {
+    marginTop: spacing.xs,
+    fontSize: 13,
+    fontWeight: "900",
+  },
 });
-

@@ -71,7 +71,7 @@ export function LoginScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.logo}>Student Kit</Text>
-          <Text style={styles.subtitle}>Track work, money, study, groceries, and reminders in one place.</Text>
+          <Text style={styles.subtitle}>Track work, expenses, study, groceries, and reminders in one place.</Text>
         </View>
 
         <View style={styles.form}>

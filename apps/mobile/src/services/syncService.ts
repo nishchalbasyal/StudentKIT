@@ -14,6 +14,7 @@ export const syncService = {
       groceries,
       cleaningRoutines,
       splitGroups,
+      splitSettlements,
     ] = await Promise.all([
       localDb.list("tasks"),
       localDb.list("reminders"),
@@ -22,6 +23,7 @@ export const syncService = {
       localDb.list("groceries"),
       localDb.list("cleaningRoutines"),
       localDb.list("splitGroups"),
+      localDb.list("splitSettlements"),
     ]);
 
     return [
@@ -32,6 +34,7 @@ export const syncService = {
       groceries,
       cleaningRoutines,
       splitGroups,
+      splitSettlements,
     ].some((items) => items.length > 0);
   },
 
@@ -76,6 +79,7 @@ export const syncService = {
       ["splitGroup", "splitGroups"],
       ["splitMember", "splitMembers"],
       ["splitExpense", "splitExpenses"],
+      ["splitSettlement", "splitSettlements"],
     ] as const;
 
     for (const [entityType, collection] of collections) {

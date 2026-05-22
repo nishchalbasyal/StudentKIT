@@ -8,4 +8,9 @@ export const syncQueueItemSchema = z.object({
   updatedAt: z.string().datetime().optional(),
 });
 
+export const syncPullQuerySchema = z.object({
+  since: z.string().datetime().optional(),
+});
+
 export type SyncQueueItemInput = z.infer<typeof syncQueueItemSchema>;
+export type SyncPullQuery = z.infer<typeof syncPullQuerySchema>;

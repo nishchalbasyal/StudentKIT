@@ -35,8 +35,10 @@ function expenseInputToData(input: ExpenseInput | UpdateExpenseInput) {
   if (input.amount !== undefined) data.amount = input.amount;
   if (input.category !== undefined) data.category = input.category;
   if (input.date !== undefined) data.date = parseDateOnly(input.date);
+  if (input.type !== undefined) (data as Record<string, unknown>).type = input.type;
+  if (input.paidBy !== undefined) (data as Record<string, unknown>).paidBy = input.paidBy;
   if (input.paymentMethod !== undefined) data.paymentMethod = input.paymentMethod;
-  if (input.notes !== undefined) data.notes = input.notes;
+  if (input.notes !== undefined || input.note !== undefined) data.notes = input.notes ?? input.note;
 
   return data;
 }
@@ -208,4 +210,3 @@ async function assertBudgetOwner(userId: string, id: string) {
     throw new HttpError(404, "NOT_FOUND", "Budget not found");
   }
 }
-

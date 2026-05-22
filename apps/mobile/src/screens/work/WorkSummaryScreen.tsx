@@ -13,15 +13,21 @@ import { useWorkHours } from "../../hooks/useWorkHours";
 import { useAuthStore } from "../../store/authStore";
 import { getApiErrorMessage } from "../../api/apiClient";
 import { formatCurrency } from "../../utils/formatCurrency";
+import { getWorkLimitOverview } from "../../utils/workLimit";
 import type { RootStackParamList } from "../../navigation/types";
 
 export function WorkSummaryScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const user = useAuthStore((state) => state.user);
   const { monthlySummary, weeklySummary } = useWorkHours();
 
   if (monthlySummary.isLoading || weeklySummary.isLoading) {
-    return <AppScreen title="Work summary"><LoadingState label="Loading summary" /></AppScreen>;
+    return (
+      <AppScreen title="Work summary">
+        <LoadingState label="Loading summary" />
+      </AppScreen>
+    );
   }
 
   if ((monthlySummary.data?.shiftCount ?? 0) === 0) {
@@ -33,7 +39,12 @@ export function WorkSummaryScreen() {
           actionLabel="Log Work Entry"
           onAction={() => navigation.navigate("AddWorkShift")}
         />
-        <AppButton title="Add Company" variant="secondary" icon="briefcase-outline" onPress={() => navigation.navigate("AddEditCompany")} />
+        <AppButton
+          title="Add Company"
+          variant="secondary"
+          icon="briefcase-outline"
+          onPress={() => navigation.navigate("AddEditCompany")}
+        />
       </AppScreen>
     );
   }
@@ -41,22 +52,59 @@ export function WorkSummaryScreen() {
   if (monthlySummary.isError || weeklySummary.isError) {
     return (
       <AppScreen title="Work summary">
-        <ErrorState message={getApiErrorMessage(monthlySummary.error ?? weeklySummary.error)} />
+        <ErrorState
+          message={getApiErrorMessage(
+            monthlySummary.error ?? weeklySummary.error,
+          )}
+        />
       </AppScreen>
     );
   }
 
+  const workLimitOverview = monthlySummary.data
+    ? getWorkLimitOverview(monthlySummary.data.workLimit)
+    : null;
+
   return (
     <AppScreen title="Work summary">
       <View style={styles.grid}>
-        <SummaryCard label="Week hours" value={`${weeklySummary.data?.totalHours ?? 0}h`} icon="calendar-outline" />
-        <SummaryCard label="Week income" value={formatCurrency(weeklySummary.data?.totalIncome ?? 0, user?.currency)} tone="income" icon="cash-outline" />
+        <SummaryCard
+          label="Week hours"
+          value={`${weeklySummary.data?.totalHours ?? 0}h`}
+          icon="calendar-outline"
+        />
+        <SummaryCard
+          label="Week income"
+          value={formatCurrency(
+            weeklySummary.data?.totalIncome ?? 0,
+            user?.currency,
+          )}
+          tone="income"
+          icon="cash-outline"
+        />
       </View>
       <View style={styles.grid}>
-        <SummaryCard label="Month hours" value={`${monthlySummary.data?.totalHours ?? 0}h`} icon="time-outline" />
-        <SummaryCard label="Month income" value={formatCurrency(monthlySummary.data?.totalIncome ?? 0, user?.currency)} tone="income" icon="trending-up-outline" />
+        <SummaryCard
+          label="Month hours"
+          value={`${monthlySummary.data?.totalHours ?? 0}h`}
+          icon="time-outline"
+        />
+        <SummaryCard
+          label="Month income"
+          value={formatCurrency(
+            monthlySummary.data?.totalIncome ?? 0,
+            user?.currency,
+          )}
+          tone="income"
+          icon="trending-up-outline"
+        />
       </View>
-      {monthlySummary.data ? <WorkLimitCard usage={monthlySummary.data.workLimit.usage} /> : null}
+      {workLimitOverview ? (
+        <WorkLimitCard
+          overview={workLimitOverview}
+          onPress={() => navigation.navigate("WorkLimitSettings")}
+        />
+      ) : null}
     </AppScreen>
   );
 }
@@ -64,6 +112,6 @@ export function WorkSummaryScreen() {
 const styles = StyleSheet.create({
   grid: {
     flexDirection: "row",
-    gap: spacing.md
-  }
+    gap: spacing.md,
+  },
 });

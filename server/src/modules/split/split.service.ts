@@ -263,8 +263,8 @@ function mapGroup(group: GroupWithData, userId?: string) {
 
 function normalizeShares(
   amountCents: number,
-  splitType: "EQUAL" | "CUSTOM" | undefined,
-  shares: Array<{ memberId: string; amount?: number; amountCents?: number }>,
+  splitType: "EQUAL" | "CUSTOM" | "PERCENTAGE" | undefined,
+  shares: Array<{ memberId: string; amount?: number; amountCents?: number; percentage?: number }>,
   currentMemberId?: string,
 ) {
   if (shares.length === 0) {
@@ -281,6 +281,23 @@ function normalizeShares(
       throw new HttpError(400, "VALIDATION_ERROR", "Expense shares must equal the total amount.");
     }
     return customShares;
+  }
+
+  if (splitType === "PERCENTAGE") {
+    const percentageTotal = shares.reduce((sum, share) => sum + Number(share.percentage ?? 0), 0);
+    if (Math.round(percentageTotal * 100) !== 10000) {
+      throw new HttpError(400, "VALIDATION_ERROR", "Split percentages must equal 100%.");
+    }
+
+    const percentageShares = shares.map((share) => ({
+      memberId: share.memberId,
+      amountCents: Math.round((amountCents * Number(share.percentage ?? 0)) / 100),
+    }));
+    const centTotal = percentageShares.reduce((sum, share) => sum + share.amountCents, 0);
+    const lastShare = percentageShares[percentageShares.length - 1];
+    if (lastShare) lastShare.amountCents += amountCents - centTotal;
+
+    return percentageShares;
   }
 
   const memberIds = shares.map((share) => share.memberId);
@@ -533,7 +550,7 @@ export class SplitService {
           amountCents,
           currency: group.currency,
           date: parseDateOnly(data.date),
-          splitType: data.splitType,
+          splitType: data.splitType as any,
           notes: data.notes,
           createdByUserId: userId,
           payers: {
@@ -619,7 +636,7 @@ export class SplitService {
           amountCents,
           currency: group.currency,
           date: data.date ? parseDateOnly(data.date) : existing.date,
-          splitType: data.splitType ?? existing.splitType,
+          splitType: (data.splitType ?? existing.splitType) as any,
           notes: data.notes ?? existing.notes,
           payers: { create: [{ memberId: nextPaidByMemberId, amountCents }] },
           shares: {

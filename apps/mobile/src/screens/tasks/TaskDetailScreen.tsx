@@ -13,6 +13,7 @@ import {
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
+import { AppButton } from "../../components/ui/AppButton";
 import { CompactActionRow } from "../../components/ui/CompactActionRow";
 import { FormSectionCard } from "../../components/ui/FormSectionCard";
 import { AppTopBar } from "../../components/ui/AppTopBar";

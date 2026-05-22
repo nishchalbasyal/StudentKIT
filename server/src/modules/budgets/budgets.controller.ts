@@ -46,14 +46,20 @@ export const remove = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const summary = asyncHandler(async (req: Request, res: Response) => {
-  const { year, month } = req.query as unknown as { year: number; month?: number };
+  const { year, month } = req.query as unknown as {
+    year: number;
+    month?: number;
+  };
 
   return sendData(
     res,
-    await BudgetsService.getBudgetSummary(
-      getUserId(req),
-      year,
-      month,
-    ),
+    await BudgetsService.getBudgetSummary(getUserId(req), year, month),
+  );
+});
+
+export const sync = asyncHandler(async (req: Request, res: Response) => {
+  return sendData(
+    res,
+    await BudgetsService.syncBudgets(getUserId(req), req.body),
   );
 });

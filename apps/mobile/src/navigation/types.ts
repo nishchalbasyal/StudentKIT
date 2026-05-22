@@ -16,7 +16,9 @@ export type PlannerStackParamList = {
 export type MoreStackParamList = {
   Groceries: undefined;
   ShoppingList: undefined;
-  AddGroceryItem: { groceryItemId?: string; duplicateFromId?: string } | undefined;
+  AddGroceryItem:
+    | { groceryItemId?: string; duplicateFromId?: string }
+    | undefined;
   PriceHistory: { groceryItemId: string; name?: string };
   Cleaning: undefined;
   AIAssistant: undefined;
@@ -28,7 +30,12 @@ export type MoreStackParamList = {
   WorkHistory: undefined;
   CompanyDetail: { companyId?: string; companyName?: string };
   AddEditCompany:
-    | { companyId?: string; companyName?: string; title?: string; message?: string }
+    | {
+        companyId?: string;
+        companyName?: string;
+        title?: string;
+        message?: string;
+      }
     | undefined;
   WeekWorkDetail:
     | { weekLabel?: string; title?: string; message?: string }
@@ -66,6 +73,7 @@ export type MoreStackParamList = {
 export type MainTabParamList = {
   Dashboard: undefined;
   Work: undefined;
+  Money: undefined;
   Expenses: undefined;
   Tasks: undefined;
   Splits: undefined;
@@ -85,7 +93,9 @@ export type RootStackParamList = {
   AddExpense: { expenseId?: string; duplicateFromId?: string } | undefined;
   Budget: undefined;
   AddTask: { taskId?: string; duplicateFromId?: string } | undefined;
-  AddGroceryItem: { groceryItemId?: string; duplicateFromId?: string } | undefined;
+  AddGroceryItem:
+    | { groceryItemId?: string; duplicateFromId?: string }
+    | undefined;
   Groceries: undefined;
   GroceryDetails: { groceryItemId?: string; name?: string } | undefined;
   Cleaning: undefined;
@@ -101,7 +111,12 @@ export type RootStackParamList = {
   WorkHistory: undefined;
   CompanyDetail: { companyId?: string; companyName?: string };
   AddEditCompany:
-    | { companyId?: string; companyName?: string; title?: string; message?: string }
+    | {
+        companyId?: string;
+        companyName?: string;
+        title?: string;
+        message?: string;
+      }
     | undefined;
   WeekWorkDetail:
     | { weekLabel?: string; title?: string; message?: string }
@@ -110,6 +125,7 @@ export type RootStackParamList = {
   ExpenseReport: undefined;
   BudgetSettings: undefined;
   CategorySettings: undefined;
+  WorkLimitSettings: undefined;
   SplitGroupDetail: { groupId: string };
   SplitGroupSettings: { groupId?: string } | undefined;
   AddEditSplitGroup: { groupId?: string } | undefined;

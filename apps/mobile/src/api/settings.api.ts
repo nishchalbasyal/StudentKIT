@@ -13,6 +13,7 @@ import type { UserEnabledModules } from "../storage/settingsStorage";
 export type ThemePreference = "SYSTEM" | "LIGHT" | "DARK";
 export type DateFormatPreference = "DD.MM.YYYY" | "MM/DD/YYYY" | "YYYY-MM-DD";
 export type TimeFormatPreference = "24H" | "12H";
+export type WorkLimitMode = "YEARLY_DAYS" | "WEEKLY_HOURS";
 
 export type AppSettings = {
   id: string;
@@ -43,7 +44,9 @@ export type AppSettings = {
   };
   work: {
     workCountry: string;
+    workLimitMode: WorkLimitMode;
     yearlyWorkLimitDays: number;
+    weeklyWorkLimitHours?: number | null;
     defaultHourlyWage?: number | null;
   };
   userEnabledModules?: {
@@ -53,6 +56,19 @@ export type AppSettings = {
     tasks: boolean;
     groceries: boolean;
     cleaning: boolean;
+    coupons: boolean;
+    events: boolean;
+    ai: boolean;
+  };
+  selectedModules?: {
+    work: boolean;
+    money: boolean;
+    splits: boolean;
+    tasks: boolean;
+    groceries: boolean;
+    cleaning: boolean;
+    coupons: boolean;
+    events: boolean;
     ai: boolean;
   };
   updatedAt: string;
@@ -197,7 +213,16 @@ export const settingsApi = {
     // Update local settings
     const local = await updateLocalSettings((settings) => ({
       ...settings,
-      userEnabledModules: { ...defaultModules, ...settings.userEnabledModules, ...input },
+      userEnabledModules: {
+        ...defaultModules,
+        ...settings.userEnabledModules,
+        ...input,
+      },
+      selectedModules: {
+        ...defaultModules,
+        ...settings.selectedModules,
+        ...input,
+      },
     }));
     // Also update onboarding preferences to keep them in sync
     await modulePreferenceService.set(input);

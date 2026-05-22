@@ -3,14 +3,16 @@ import { z } from "zod";
 export const notificationSettingsSchema = z.object({
   pushNotifications: z.boolean().optional(),
   emailUpdates: z.boolean().optional(),
-  reminderCategories: z.object({
-    classes: z.boolean().optional(),
-    tasks: z.boolean().optional(),
-    work: z.boolean().optional(),
-    groceries: z.boolean().optional(),
-    cleaning: z.boolean().optional(),
-    splitSettlements: z.boolean().optional(),
-  }).optional(),
+  reminderCategories: z
+    .object({
+      classes: z.boolean().optional(),
+      tasks: z.boolean().optional(),
+      work: z.boolean().optional(),
+      groceries: z.boolean().optional(),
+      cleaning: z.boolean().optional(),
+      splitSettlements: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 export const preferenceSettingsSchema = z.object({
@@ -34,15 +36,15 @@ export const workSettingsSchema = z.object({
 });
 
 export const moduleSettingsSchema = z.object({
-  userEnabledModules: z.object({
-    work: z.boolean().optional(),
-    money: z.boolean().optional(),
-    splits: z.boolean().optional(),
-    tasks: z.boolean().optional(),
-    groceries: z.boolean().optional(),
-    cleaning: z.boolean().optional(),
-    ai: z.boolean().optional(),
-  }).optional(),
+  work: z.boolean().optional(),
+  money: z.boolean().optional(),
+  splits: z.boolean().optional(),
+  tasks: z.boolean().optional(),
+  groceries: z.boolean().optional(),
+  cleaning: z.boolean().optional(),
+  coupons: z.boolean().optional(),
+  events: z.boolean().optional(),
+  ai: z.boolean().optional(),
 });
 
 export const updateSettingsSchema = notificationSettingsSchema
@@ -51,8 +53,11 @@ export const updateSettingsSchema = notificationSettingsSchema
   .merge(workSettingsSchema)
   .merge(moduleSettingsSchema);
 
-export type NotificationSettingsInput = z.infer<typeof notificationSettingsSchema>;
+export type NotificationSettingsInput = z.infer<
+  typeof notificationSettingsSchema
+>;
 export type PreferenceSettingsInput = z.infer<typeof preferenceSettingsSchema>;
 export type AISettingsInput = z.infer<typeof aiSettingsSchema>;
 export type WorkSettingsInput = z.infer<typeof workSettingsSchema>;
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
+export type ModuleSettingsInput = z.infer<typeof moduleSettingsSchema>;

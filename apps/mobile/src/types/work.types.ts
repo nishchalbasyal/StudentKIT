@@ -6,6 +6,16 @@ export type BonusType =
   | "NIGHT_SHIFT"
   | "CUSTOM";
 
+export type WorkLimitType = "UNLIMITED" | "CUSTOM";
+export type WorkLimitUnit = "HOURS" | "DAYS";
+export type WorkLimitPeriodUnit = "WEEK" | "MONTH" | "YEAR" | "CUSTOM_DAYS";
+export type WorkLimitStatus =
+  | "UNLIMITED"
+  | "SAFE"
+  | "WARNING"
+  | "DANGER"
+  | "EXCEEDED";
+
 export type WorkShift = {
   id: string;
   companyId?: string | null;
@@ -31,6 +41,43 @@ export type WorkLimitUsage = {
   warningLevel: "ok" | "near" | "critical" | "exceeded";
 };
 
+export type WorkLimitSettings = {
+  id: string;
+  userId: string;
+  isLimitEnabled: boolean;
+  limitType: WorkLimitType;
+  limitValue: number | null;
+  limitUnit: WorkLimitUnit | null;
+  periodValue: number | null;
+  periodUnit: WorkLimitPeriodUnit | null;
+  warningPercentage: number;
+  dangerPercentage: number;
+  hasDismissedUnlimitedLimitBanner: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WorkLimitSummary = {
+  isLimitEnabled: boolean;
+  limitType: WorkLimitType;
+  limitUnit: WorkLimitUnit | null;
+  limitValue: number | null;
+  periodValue: number | null;
+  periodUnit: WorkLimitPeriodUnit | null;
+  warningPercentage: number;
+  dangerPercentage: number;
+  hasDismissedUnlimitedLimitBanner: boolean;
+  limit: number | null;
+  used: number;
+  remaining: number | null;
+  percentageUsed: number | null;
+  status: WorkLimitStatus;
+  monthlyAllowed: number | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  usage: WorkLimitUsage;
+};
+
 export type CompanyWorkSummary = {
   companyId: string | null;
   companyName: string;
@@ -47,13 +94,12 @@ export type WorkSummary = {
   totalHours: number;
   totalIncome: number;
   shiftCount: number;
-  remainingLimitDays?: number;
+  remainingLimitDays?: number | null;
   remainingLimitHours?: number | null;
   companies?: CompanyWorkSummary[];
-  workLimit: {
-    countryCode: string;
-    studentStatus: string;
-    usage: WorkLimitUsage;
+  workLimit: WorkLimitSummary & {
+    countryCode?: string;
+    studentStatus?: string;
   };
   shifts: WorkShift[];
 };

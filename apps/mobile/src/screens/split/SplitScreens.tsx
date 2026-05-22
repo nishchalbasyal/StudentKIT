@@ -169,7 +169,7 @@ function MemberBuilder({
       <Text style={styles.label}>Manual member</Text>
       <TextInput value={manualName} onChangeText={setManualName} placeholder="Name" placeholderTextColor={colors.muted} style={styles.input} />
       <TextInput value={manualEmail} onChangeText={setManualEmail} placeholder="Email optional" placeholderTextColor={colors.muted} autoCapitalize="none" keyboardType="email-address" style={styles.input} />
-      <AppButton title="Add Manual Member" icon="person-add-outline" variant="secondary" onPress={addManual} />
+      <AppButton title="Add More Member" icon="person-add-outline" variant="secondary" onPress={addManual} />
     </>
   );
 }

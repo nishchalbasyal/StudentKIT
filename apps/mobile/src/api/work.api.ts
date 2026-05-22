@@ -1,13 +1,22 @@
-import type { WorkShift, WorkShiftInput, WorkSummary } from "../types/work.types";
+import type {
+  WorkShift,
+  WorkShiftInput,
+  WorkSummary,
+} from "../types/work.types";
 import { apiClient, unwrap } from "./apiClient";
 import { localDb } from "../storage/localDb";
 import { syncQueue } from "../storage/syncQueue";
 import { useAuthStore } from "../store/authStore";
-import { getLocalSettings } from "../storage/settingsStorage";
 import { calculateWorkDuration } from "../utils/workMath";
+import { defaultWorkLimitSummary } from "./workLimit.api";
 
 function enrichShift(input: WorkShiftInput): Omit<WorkShift, "id"> {
-  const duration = calculateWorkDuration(input.date, input.startTime, input.endTime, input.breakMinutes);
+  const duration = calculateWorkDuration(
+    input.date,
+    input.startTime,
+    input.endTime,
+    input.breakMinutes,
+  );
   const calculatedHours = Math.max(0, duration.hours);
   return {
     ...input,
@@ -19,14 +28,23 @@ function enrichShift(input: WorkShiftInput): Omit<WorkShift, "id"> {
   };
 }
 
-async function buildLocalWorkSummary(year: number, month: number): Promise<WorkSummary> {
-  const [settings, shifts] = await Promise.all([getLocalSettings(), localDb.list("workEntries")]);
+async function buildLocalWorkSummary(
+  year: number,
+  month: number,
+): Promise<WorkSummary> {
+  const shifts = await localDb.list("workEntries");
   const filtered = shifts.filter((shift) => {
     const date = new Date(`${shift.date}T12:00:00`);
     return date.getFullYear() === year && date.getMonth() + 1 === month;
   });
-  const totalHours = filtered.reduce((sum, shift) => sum + Number(shift.calculatedHours ?? 0), 0);
-  const totalIncome = filtered.reduce((sum, shift) => sum + Number(shift.calculatedIncome ?? 0), 0);
+  const totalHours = filtered.reduce(
+    (sum, shift) => sum + Number(shift.calculatedHours ?? 0),
+    0,
+  );
+  const totalIncome = filtered.reduce(
+    (sum, shift) => sum + Number(shift.calculatedIncome ?? 0),
+    0,
+  );
 
   return {
     year,
@@ -34,18 +52,15 @@ async function buildLocalWorkSummary(year: number, month: number): Promise<WorkS
     totalHours,
     totalIncome,
     shiftCount: filtered.length,
-    remainingLimitDays: Math.max(0, settings.work.yearlyWorkLimitDays - shifts.length),
+    remainingLimitDays: null,
     remainingLimitHours: null,
     companies: [],
     workLimit: {
-      countryCode: settings.work.workCountry,
-      studentStatus: "INTERNATIONAL",
+      ...defaultWorkLimitSummary,
+      used: totalHours,
       usage: {
-        usedFullDayUnits: shifts.length,
-        remainingFullDayUnits: Math.max(0, settings.work.yearlyWorkLimitDays - shifts.length),
-        limitFullDayUnits: settings.work.yearlyWorkLimitDays,
-        percentUsed: settings.work.yearlyWorkLimitDays ? Math.min(100, (shifts.length / settings.work.yearlyWorkLimitDays) * 100) : 0,
-        warningLevel: "ok",
+        ...defaultWorkLimitSummary.usage,
+        usedFullDayUnits: totalHours,
       },
     },
     shifts: filtered,
@@ -53,7 +68,8 @@ async function buildLocalWorkSummary(year: number, month: number): Promise<WorkS
 }
 
 export async function getWorkShiftsApi() {
-  if (!useAuthStore.getState().isAuthenticated) return localDb.list("workEntries");
+  if (!useAuthStore.getState().isAuthenticated)
+    return localDb.list("workEntries");
   try {
     const remote = unwrap<WorkShift[]>(await apiClient.get("/work-shifts"));
     await localDb.replace("workEntries", await remote);
@@ -66,7 +82,9 @@ export async function getWorkShiftsApi() {
 export async function createWorkShiftApi(input: WorkShiftInput) {
   if (useAuthStore.getState().isAuthenticated) {
     try {
-      const remote = unwrap<WorkShift>(await apiClient.post("/work-shifts", input));
+      const remote = unwrap<WorkShift>(
+        await apiClient.post("/work-shifts", input),
+      );
       await localDb.upsert("workEntries", await remote);
       return remote;
     } catch {
@@ -75,22 +93,41 @@ export async function createWorkShiftApi(input: WorkShiftInput) {
   }
   const local = await localDb.create("workEntries", enrichShift(input));
   if (useAuthStore.getState().isAuthenticated) {
-    await syncQueue.enqueue({ entityType: "workEntry", entityId: local.id, operation: "CREATE", payload: local });
+    await syncQueue.enqueue({
+      entityType: "workEntry",
+      entityId: local.id,
+      operation: "CREATE",
+      payload: local,
+    });
   }
   return local;
 }
 
-export async function updateWorkShiftApi(id: string, input: Partial<WorkShiftInput>) {
+export async function updateWorkShiftApi(
+  id: string,
+  input: Partial<WorkShiftInput>,
+) {
   const current = await localDb.find("workEntries", id);
   const localInput = { ...(current ?? {}), ...input } as WorkShiftInput;
-  const local = await localDb.update("workEntries", id, enrichShift(localInput));
+  const local = await localDb.update(
+    "workEntries",
+    id,
+    enrichShift(localInput),
+  );
   if (useAuthStore.getState().isAuthenticated) {
     try {
-      const remote = unwrap<WorkShift>(await apiClient.put(`/work-shifts/${id}`, input));
+      const remote = unwrap<WorkShift>(
+        await apiClient.put(`/work-shifts/${id}`, input),
+      );
       await localDb.upsert("workEntries", await remote);
       return remote;
     } catch {
-      await syncQueue.enqueue({ entityType: "workEntry", entityId: id, operation: "UPDATE", payload: local ?? input });
+      await syncQueue.enqueue({
+        entityType: "workEntry",
+        entityId: id,
+        operation: "UPDATE",
+        payload: local ?? input,
+      });
     }
   }
   return local as WorkShift;
@@ -100,19 +137,29 @@ export async function deleteWorkShiftApi(id: string) {
   await localDb.remove("workEntries", id);
   if (useAuthStore.getState().isAuthenticated) {
     try {
-      return unwrap<{ id: string }>(await apiClient.delete(`/work-shifts/${id}`));
+      return unwrap<{ id: string }>(
+        await apiClient.delete(`/work-shifts/${id}`),
+      );
     } catch {
-      await syncQueue.enqueue({ entityType: "workEntry", entityId: id, operation: "DELETE", payload: { id } });
+      await syncQueue.enqueue({
+        entityType: "workEntry",
+        entityId: id,
+        operation: "DELETE",
+        payload: { id },
+      });
     }
   }
   return { id };
 }
 
 export async function getMonthlyWorkSummaryApi(year: number, month: number) {
-  if (!useAuthStore.getState().isAuthenticated) return buildLocalWorkSummary(year, month);
+  if (!useAuthStore.getState().isAuthenticated)
+    return buildLocalWorkSummary(year, month);
   try {
     return unwrap<WorkSummary>(
-      await apiClient.get("/work-shifts/summary/monthly", { params: { year, month } })
+      await apiClient.get("/work-shifts/summary/monthly", {
+        params: { year, month },
+      }),
     );
   } catch {
     return buildLocalWorkSummary(year, month);
@@ -121,7 +168,9 @@ export async function getMonthlyWorkSummaryApi(year: number, month: number) {
 
 export async function getMonthlyWorkSummaryByKeyApi(monthKey: string) {
   return unwrap<WorkSummary>(
-    await apiClient.get("/work-shifts/summary/monthly", { params: { month: monthKey } })
+    await apiClient.get("/work-shifts/summary/monthly", {
+      params: { month: monthKey },
+    }),
   );
 }
 
@@ -129,14 +178,19 @@ export async function getWeeklyWorkSummaryApi(date?: string) {
   if (useAuthStore.getState().isAuthenticated) {
     try {
       return unwrap<Omit<WorkSummary, "year" | "month" | "workLimit">>(
-        await apiClient.get("/work-shifts/summary/weekly", { params: { date } })
+        await apiClient.get("/work-shifts/summary/weekly", {
+          params: { date },
+        }),
       );
     } catch {
       // Local fallback below.
     }
   }
   const now = date ? new Date(`${date}T12:00:00`) : new Date();
-  const summary = await buildLocalWorkSummary(now.getFullYear(), now.getMonth() + 1);
+  const summary = await buildLocalWorkSummary(
+    now.getFullYear(),
+    now.getMonth() + 1,
+  );
   return {
     totalHours: summary.totalHours,
     totalIncome: summary.totalIncome,

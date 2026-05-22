@@ -8,6 +8,8 @@ export type UserEnabledModules = {
   tasks: boolean;
   groceries: boolean;
   cleaning: boolean;
+  coupons: boolean;
+  events: boolean;
   ai: boolean;
 };
 
@@ -28,6 +30,8 @@ export const defaultModules: UserEnabledModules = {
   tasks: true,
   groceries: true,
   cleaning: true,
+  coupons: false,
+  events: false,
   ai: false,
 };
 
@@ -60,10 +64,13 @@ export const defaultSettings: AppSettings = {
   },
   work: {
     workCountry: "DE",
+    workLimitMode: "YEARLY_DAYS",
     yearlyWorkLimitDays: 140,
+    weeklyWorkLimitHours: null,
     defaultHourlyWage: null,
   },
   userEnabledModules: defaultModules,
+  selectedModules: defaultModules,
   updatedAt: new Date(0).toISOString(),
 };
 
@@ -103,6 +110,12 @@ function mergeSettings(value?: Partial<AppSettings> | null): AppSettings {
     userEnabledModules: {
       ...defaultModules,
       ...(value as AppSettings | undefined)?.userEnabledModules,
+      ...(value as AppSettings | undefined)?.selectedModules,
+    },
+    selectedModules: {
+      ...defaultModules,
+      ...(value as AppSettings | undefined)?.selectedModules,
+      ...(value as AppSettings | undefined)?.userEnabledModules,
     },
     updatedAt: value?.updatedAt ?? new Date().toISOString(),
   };
@@ -121,12 +134,18 @@ export async function getLocalSettings() {
 }
 
 export async function saveLocalSettings(settings: Partial<AppSettings>) {
-  const next = mergeSettings({ ...(await getLocalSettings()), ...settings, updatedAt: new Date().toISOString() });
+  const next = mergeSettings({
+    ...(await getLocalSettings()),
+    ...settings,
+    updatedAt: new Date().toISOString(),
+  });
   await AsyncStorage.setItem(settingsKey, JSON.stringify(next));
   return next;
 }
 
-export async function updateLocalSettings(updater: (settings: AppSettings) => AppSettings) {
+export async function updateLocalSettings(
+  updater: (settings: AppSettings) => AppSettings,
+) {
   const next = mergeSettings(updater(await getLocalSettings()));
   next.updatedAt = new Date().toISOString();
   await AsyncStorage.setItem(settingsKey, JSON.stringify(next));
@@ -153,7 +172,9 @@ export async function getOnboardingPreferences() {
   }
 }
 
-export async function saveOnboardingPreferences(input: Partial<OnboardingPreferences>) {
+export async function saveOnboardingPreferences(
+  input: Partial<OnboardingPreferences>,
+) {
   const next = {
     ...(await getOnboardingPreferences()),
     ...input,
@@ -164,6 +185,9 @@ export async function saveOnboardingPreferences(input: Partial<OnboardingPrefere
     updatedAt: new Date().toISOString(),
   };
   await AsyncStorage.setItem(onboardingKey, JSON.stringify(next));
-  await saveLocalSettings({ userEnabledModules: next.userEnabledModules } as Partial<AppSettings>);
+  await saveLocalSettings({
+    userEnabledModules: next.userEnabledModules,
+    selectedModules: next.userEnabledModules,
+  } as Partial<AppSettings>);
   return next;
 }

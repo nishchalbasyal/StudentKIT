@@ -3,7 +3,6 @@ import { prisma } from "../../database/prisma.js";
 import {
   getMonthRange,
   getWeekRange,
-  getYearRange,
   parseDateOnly,
   parseTimeOnly,
   toDateOnlyString,
@@ -14,22 +13,16 @@ import { HttpError } from "../../utils/httpError.js";
 import {
   calculateIncome,
   calculateWorkedHours,
-  calculateWorkLimitUsage,
   roundHours,
   roundMoney,
 } from "./workHours.calculations.js";
+import { getCurrentWorkLimitSummary } from "../work-limit/workLimit.service.js";
 import type {
   MonthlySummaryQuery,
   UpdateWorkShiftInput,
   WeeklySummaryQuery,
   WorkShiftInput,
 } from "./workHours.schemas.js";
-
-const defaultGermanyPolicy = {
-  yearlyFullDayLimit: 140,
-  yearlyHalfDayLimit: 280,
-  halfDayMaxHours: 4,
-};
 
 function mapShift(shift: WorkShift) {
   const hours = calculateWorkedHours(
@@ -148,7 +141,11 @@ export async function getWorkShiftById(userId: string, id: string) {
 }
 
 export async function createWorkShift(userId: string, input: WorkShiftInput) {
-  validateWorkedMinutes(parseTimeOnly(input.startTime), parseTimeOnly(input.endTime), input.breakMinutes);
+  validateWorkedMinutes(
+    parseTimeOnly(input.startTime),
+    parseTimeOnly(input.endTime),
+    input.breakMinutes,
+  );
   const shift = await prisma.workShift.create({
     data: {
       ...inputToData(input),
@@ -179,7 +176,11 @@ export async function updateWorkShift(
   return mapShift(shift);
 }
 
-function validateWorkedMinutes(startTime: Date, endTime: Date, breakMinutes: number) {
+function validateWorkedMinutes(
+  startTime: Date,
+  endTime: Date,
+  breakMinutes: number,
+) {
   const startMinutes = timeToMinutes(startTime);
   let endMinutes = timeToMinutes(endTime);
 
@@ -190,7 +191,11 @@ function validateWorkedMinutes(startTime: Date, endTime: Date, breakMinutes: num
   const workedMinutes = endMinutes - startMinutes - breakMinutes;
 
   if (workedMinutes < 0) {
-    throw new HttpError(400, "VALIDATION_ERROR", "Break time cannot be longer than the shift.");
+    throw new HttpError(
+      400,
+      "VALIDATION_ERROR",
+      "Break time cannot be longer than the shift.",
+    );
   }
 }
 
@@ -224,7 +229,7 @@ export async function getMonthlyWorkSummary(
   const totalIncome = roundMoney(
     mapped.reduce((sum, shift) => sum + shift.calculatedIncome, 0),
   );
-  const workLimit = await getWorkLimitForYear(userId, query.year);
+  const workLimit = await getCurrentWorkLimitSummary(userId);
 
   return {
     year: query.year,
@@ -233,12 +238,50 @@ export async function getMonthlyWorkSummary(
     totalHours,
     totalIncome,
     shiftCount: mapped.length,
-    remainingLimitDays: workLimit.usage.remainingFullDayUnits,
-    remainingLimitHours: null,
+    remainingLimitDays:
+      workLimit.limitUnit === "DAYS" ? workLimit.remaining : undefined,
+    remainingLimitHours:
+      workLimit.limitUnit === "HOURS" ? workLimit.remaining : null,
     companies: buildCompanySummaries(mapped),
     workLimit,
     shifts: mapped,
   };
+}
+
+export async function getMonthlyIncome(
+  userId: string,
+  year: number,
+  month: number,
+) {
+  const { start, end } = getMonthRange(year, month);
+  const shifts = await prisma.workShift.findMany({
+    where: {
+      userId,
+      date: {
+        gte: start,
+        lt: end,
+      },
+    },
+    orderBy: [{ date: "asc" }, { startTime: "asc" }],
+  });
+
+  return roundMoney(
+    shifts.reduce((sum, shift) => {
+      const hours = calculateWorkedHours(
+        shift.startTime,
+        shift.endTime,
+        shift.breakMinutes,
+      );
+      const income = calculateIncome(
+        hours,
+        Number(shift.hourlyWage),
+        shift.bonusType,
+        shift.bonusValue ? Number(shift.bonusValue) : null,
+      );
+
+      return sum + income;
+    }, 0),
+  );
 }
 
 export async function getWeeklyWorkSummary(
@@ -271,74 +314,6 @@ export async function getWeeklyWorkSummary(
     ),
     shiftCount: mapped.length,
     shifts: mapped,
-  };
-}
-
-export async function getMonthlyIncome(
-  userId: string,
-  year: number,
-  month: number,
-) {
-  const summary = await getMonthlyWorkSummary(userId, { year, month });
-  return summary.totalIncome;
-}
-
-export async function getWorkLimitForYear(userId: string, year: number) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { country: true, studentStatus: true },
-  });
-
-  if (!user) {
-    throw new HttpError(404, "NOT_FOUND", "User not found");
-  }
-
-  const { start, end } = getYearRange(year);
-  const [policy, shifts] = await Promise.all([
-    prisma.workLimitPolicy.findFirst({
-      where: {
-        countryCode: user.country,
-        studentStatus: user.studentStatus,
-        effectiveFrom: { lte: end },
-        OR: [{ effectiveTo: null }, { effectiveTo: { gte: start } }],
-      },
-      orderBy: { effectiveFrom: "desc" },
-    }),
-    prisma.workShift.findMany({
-      where: {
-        userId,
-        date: {
-          gte: start,
-          lt: end,
-        },
-      },
-    }),
-  ]);
-
-  const policySnapshot = policy
-    ? {
-        yearlyFullDayLimit: policy.yearlyFullDayLimit,
-        yearlyHalfDayLimit: policy.yearlyHalfDayLimit,
-        halfDayMaxHours: Number(policy.halfDayMaxHours),
-      }
-    : defaultGermanyPolicy;
-
-  const usage = calculateWorkLimitUsage(
-    shifts.map((shift) => ({
-      hours: calculateWorkedHours(
-        shift.startTime,
-        shift.endTime,
-        shift.breakMinutes,
-      ),
-    })),
-    policySnapshot,
-  );
-
-  return {
-    countryCode: user.country,
-    studentStatus: user.studentStatus,
-    policy: policySnapshot,
-    usage,
   };
 }
 

@@ -20,7 +20,7 @@ export function MonthlyGoalCard({ savings, workHours, currency }: Props) {
     <View style={styles.card}>
       <Text style={styles.title}>Monthly Goals</Text>
       <GoalRow
-        title="Save money"
+        title="Save more"
         value={`${formatCurrency(Math.max(savings, 0), currency)} / ${formatCurrency(savingsTarget, currency)}`}
         percent={progress(Math.max(savings, 0), savingsTarget)}
         color={colors.savings}

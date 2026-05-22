@@ -51,7 +51,7 @@ export function ExpensesScreen() {
   const [tab, setTab] = useState<Tab>("expenses");
 
   if (expenses.isLoading || summary.isLoading) {
-    return <SafeAreaView style={styles.safe}><LoadingState label="Loading money" /></SafeAreaView>;
+    return <SafeAreaView style={styles.safe}><LoadingState label="Loading expense" /></SafeAreaView>;
   }
 
   if (expenses.isError || summary.isError) {
@@ -59,7 +59,7 @@ export function ExpensesScreen() {
       <SafeAreaView style={styles.safe}>
         <View style={styles.center}>
           <ErrorState
-            message="Could not load money."
+            message="Could not load expense."
             onRetry={() => {
               void expenses.refetch();
               void summary.refetch();
@@ -77,7 +77,7 @@ export function ExpensesScreen() {
   return (
     <SafeAreaView edges={["top"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <AppHeader title="Money" avatarText={user?.name ?? "ST"} showSettings />
+        <AppHeader title="Expense" avatarText={user?.name ?? "ST"} showSettings />
 
         <SegmentedTabs tabs={tabs} value={tab} onChange={setTab} />
 

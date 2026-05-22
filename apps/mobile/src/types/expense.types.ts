@@ -10,16 +10,27 @@ export type ExpenseCategory =
   | "SHOPPING"
   | "OTHER";
 
-export type PaymentMethod = "CASH" | "CARD" | "BANK_TRANSFER" | "PAYPAL" | "OTHER";
+export type PaymentMethod =
+  | "CASH"
+  | "CARD"
+  | "BANK_TRANSFER"
+  | "PAYPAL"
+  | "OTHER";
 
 export type Expense = {
   id: string;
+  userId?: string | null;
   title: string;
   amount: number;
   category: ExpenseCategory;
   date: string;
+  type?: "personal" | "split" | "group";
+  paidBy?: string | null;
   paymentMethod: PaymentMethod;
   notes?: string | null;
+  note?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type ExpenseInput = {
@@ -27,8 +38,11 @@ export type ExpenseInput = {
   amount: number;
   category: ExpenseCategory;
   date: string;
+  type?: "personal" | "split" | "group";
+  paidBy?: string | null;
   paymentMethod: PaymentMethod;
   notes?: string;
+  note?: string;
 };
 
 export type ExpenseSummary = {
@@ -42,10 +56,21 @@ export type ExpenseSummary = {
 
 export type Budget = {
   id: string;
+  localId?: string;
+  userId?: string | null;
+  type?: "WEEKLY" | "MONTHLY" | "CATEGORY" | "SAVINGS";
+  categoryId?: string | null;
   year: number;
   month: number;
   category?: ExpenseCategory | null;
   amount: number;
-  notes?: string | null;
+  amountCents?: number;
+  currency?: string;
+  periodStart?: string;
+  periodEnd?: string;
+  isActive?: boolean;
+  notes: string | null;
+  syncedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
-

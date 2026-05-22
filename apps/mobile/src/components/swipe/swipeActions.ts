@@ -95,7 +95,7 @@ export function buildSwipeDeckCards({
     },
     {
       id: "expense",
-      title: "Money",
+      title: "Expense",
       subtitle:
         dashboard.month.savings >= 0
           ? `${formatCurrency(dashboard.month.savings, currency)} saved this month`
@@ -106,13 +106,13 @@ export function buildSwipeDeckCards({
       ],
       accentColor: "#2563EB",
       leftAction: "Add expense",
-      rightAction: "Money",
-      upAction: "Money insight",
+      rightAction: "Expense",
+      upAction: "Expense insight",
       downAction: "Saving tip",
       suggestion:
         dashboard.month.expenses > 0
           ? "Small repeated purchases are usually where budgets leak."
-          : "Add the first expense to make money guidance useful.",
+          : "Add the first expense to make expense guidance useful.",
       tip: "Plan groceries before going to Aldi or Lidl."
     },
     {

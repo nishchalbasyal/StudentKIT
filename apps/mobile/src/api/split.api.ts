@@ -9,6 +9,7 @@ import type {
   RecordSettlementInput,
   SplitActivity,
   SplitBalance,
+  SplitDebt,
   SplitExpense,
   SplitFriendBalance,
   SplitGroup,
@@ -21,16 +22,143 @@ function isOnlineAccount() {
   return useAuthStore.getState().isAuthenticated;
 }
 
+function centsToMoney(cents: number) {
+  return Number((cents / 100).toFixed(2));
+}
+
+function expenseCents(expense: { amount: number; amountCents?: number | null }) {
+  return expense.amountCents ?? Math.round(expense.amount * 100);
+}
+
+function memberKey(member: { userId?: string | null; email?: string | null; id: string }) {
+  return member.userId ?? member.email?.toLowerCase() ?? member.id;
+}
+
 async function localGroups(): Promise<SplitGroup[]> {
-  const [groups, members, expenses] = await Promise.all([
+  const [groups, members, expenses, settlements] = await Promise.all([
     localDb.list("splitGroups"),
     localDb.list("splitMembers"),
     localDb.list("splitExpenses"),
+    localDb.list("splitSettlements"),
   ]);
+  const currentUserId = useAuthStore.getState().user?.id ?? null;
+
   return groups.map((group) => {
     const groupMembers = members.filter((member) => member.groupId === group.id);
     const groupExpenses = expenses.filter((expense) => expense.groupId === group.id);
-    const totalAmount = groupExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+    const groupSettlements = settlements.filter((settlement) => settlement.groupId === group.id);
+    const mappedMembers = groupMembers.map((member) => ({
+      id: member.id,
+      groupId: member.groupId,
+      userId: member.userId,
+      name: member.name,
+      email: member.email ?? null,
+      isCurrentUser: member.userId === currentUserId || member.name.toLowerCase() === "me",
+      isRegisteredUser: Boolean(member.userId),
+      createdAt: member.createdAt ?? new Date().toISOString(),
+      updatedAt: member.updatedAt ?? new Date().toISOString(),
+    }));
+    const memberById = new Map(mappedMembers.map((member) => [member.id, member]));
+    const mappedExpenses = groupExpenses.map((expense) => {
+      const amountCents = expenseCents(expense);
+      const fallbackShare = mappedMembers.length
+        ? Math.floor(amountCents / mappedMembers.length)
+        : amountCents;
+      let remainder = mappedMembers.length ? amountCents % mappedMembers.length : 0;
+      const shares = (expense.shares?.length
+        ? expense.shares
+        : mappedMembers.map((member) => {
+            const extra = remainder > 0 ? 1 : 0;
+            remainder -= extra;
+            return { memberId: member.id, amountCents: fallbackShare + extra };
+          })
+      ).map((share) => ({
+        memberId: share.memberId,
+        amount: centsToMoney(share.amountCents),
+        amountCents: share.amountCents,
+        percentage: "percentage" in share ? share.percentage : undefined,
+        member: memberById.get(share.memberId),
+      }));
+
+      return {
+        id: expense.id,
+        groupId: group.id,
+        paidByMemberId: expense.paidByMemberId ?? "",
+        title: expense.title,
+        category: expense.category ?? null,
+        amount: centsToMoney(amountCents),
+        amountCents,
+        currency: "EUR",
+        date: expense.date,
+        splitType: expense.splitType ?? "EQUAL",
+        notes: expense.notes ?? null,
+        createdAt: expense.createdAt ?? new Date().toISOString(),
+        updatedAt: expense.updatedAt ?? new Date().toISOString(),
+        paidBy: expense.paidByMemberId ? memberById.get(expense.paidByMemberId) : undefined,
+        payers: expense.paidByMemberId
+          ? [{
+              memberId: expense.paidByMemberId,
+              amount: centsToMoney(amountCents),
+              amountCents,
+              member: memberById.get(expense.paidByMemberId),
+            }]
+          : [],
+        shares,
+        group: { id: group.id, name: group.name, currency: "EUR" },
+        balanceEffect: [],
+      } as SplitExpense;
+    });
+    const mappedSettlements = groupSettlements.map((settlement) => {
+      const amountCents = expenseCents(settlement);
+      return {
+        id: settlement.id,
+        groupId: group.id,
+        fromMemberId: settlement.fromMemberId,
+        toMemberId: settlement.toMemberId,
+        amount: centsToMoney(amountCents),
+        amountCents,
+        currency: settlement.currency ?? "EUR",
+        date: settlement.date,
+        notes: settlement.notes ?? null,
+        fromMember: memberById.get(settlement.fromMemberId),
+        toMember: memberById.get(settlement.toMemberId),
+      } as SplitSettlement;
+    });
+    const balances = mappedMembers.map((member) => {
+      const totalPaidCents = mappedExpenses
+        .flatMap((expense) => expense.payers ?? [])
+        .filter((payer) => payer.memberId === member.id)
+        .reduce((sum, payer) => sum + payer.amountCents, 0);
+      const totalShareCents = mappedExpenses
+        .flatMap((expense) => expense.shares ?? [])
+        .filter((share) => share.memberId === member.id)
+        .reduce((sum, share) => sum + share.amountCents, 0);
+      const settlementCents = mappedSettlements.reduce((sum, settlement) => {
+        if (settlement.fromMemberId === member.id) return sum + settlement.amountCents;
+        if (settlement.toMemberId === member.id) return sum - settlement.amountCents;
+        return sum;
+      }, 0);
+      const netCents = totalPaidCents - totalShareCents + settlementCents;
+      return {
+        memberId: member.id,
+        member,
+        totalPaidCents,
+        totalPaid: centsToMoney(totalPaidCents),
+        totalShareCents,
+        totalShare: centsToMoney(totalShareCents),
+        settlementCents,
+        settlement: centsToMoney(settlementCents),
+        netCents,
+        net: centsToMoney(netCents),
+      } as SplitBalance;
+    });
+    const simplifiedDebts = simplifyLocalDebts(balances);
+    const currentMember = mappedMembers.find((member) => member.isCurrentUser);
+    const currentUserBalanceCents = currentMember
+      ? balances.find((balance) => balance.memberId === currentMember.id)?.netCents ?? 0
+      : 0;
+    const totalAmountCents = mappedExpenses.reduce((sum, expense) => sum + expense.amountCents, 0);
+
     return {
       id: group.id,
       userId: group.userId ?? "guest",
@@ -39,29 +167,57 @@ async function localGroups(): Promise<SplitGroup[]> {
       description: group.description ?? null,
       currency: "EUR",
       archivedAt: group.archivedAt ?? null,
-      totalAmount,
-      totalAmountCents: Math.round(totalAmount * 100),
-      currentUserBalance: 0,
-      currentUserBalanceCents: 0,
+      totalAmount: centsToMoney(totalAmountCents),
+      totalAmountCents,
+      currentUserBalance: centsToMoney(currentUserBalanceCents),
+      currentUserBalanceCents,
       createdAt: group.createdAt ?? new Date().toISOString(),
       updatedAt: group.updatedAt ?? new Date().toISOString(),
-      members: groupMembers.map((member) => ({
-        id: member.id,
-        groupId: member.groupId,
-        userId: member.userId,
-        name: member.name,
-        email: member.email ?? null,
-        isCurrentUser: member.name.toLowerCase() === "me",
-        isRegisteredUser: Boolean(member.userId),
-        createdAt: member.createdAt ?? new Date().toISOString(),
-        updatedAt: member.updatedAt ?? new Date().toISOString(),
-      })),
-      expenses: [],
-      settlements: [],
-      balances: [],
-      simplifiedDebts: [],
+      members: mappedMembers,
+      expenses: mappedExpenses,
+      settlements: mappedSettlements,
+      balances,
+      simplifiedDebts,
     };
   });
+}
+
+function simplifyLocalDebts(balances: SplitBalance[]): SplitDebt[] {
+  const debtors = balances
+    .filter((row) => row.netCents < 0)
+    .map((row) => ({ ...row, remaining: Math.abs(row.netCents) }))
+    .sort((a, b) => b.remaining - a.remaining);
+  const creditors = balances
+    .filter((row) => row.netCents > 0)
+    .map((row) => ({ ...row, remaining: row.netCents }))
+    .sort((a, b) => b.remaining - a.remaining);
+  const debts: SplitDebt[] = [];
+  let debtorIndex = 0;
+  let creditorIndex = 0;
+
+  while (debtorIndex < debtors.length && creditorIndex < creditors.length) {
+    const debtor = debtors[debtorIndex]!;
+    const creditor = creditors[creditorIndex]!;
+    const amountCents = Math.min(debtor.remaining, creditor.remaining);
+
+    if (amountCents > 0) {
+      debts.push({
+        fromMemberId: debtor.memberId,
+        toMemberId: creditor.memberId,
+        fromMember: debtor.member,
+        toMember: creditor.member,
+        amount: centsToMoney(amountCents),
+        amountCents,
+      });
+    }
+
+    debtor.remaining -= amountCents;
+    creditor.remaining -= amountCents;
+    if (debtor.remaining === 0) debtorIndex += 1;
+    if (creditor.remaining === 0) creditorIndex += 1;
+  }
+
+  return debts;
 }
 
 export const splitApi = {
@@ -74,9 +230,10 @@ export const splitApi = {
       }
     }
     const groups = await localGroups();
+    const balanceCents = groups.reduce((sum, group) => sum + group.currentUserBalanceCents, 0);
     return {
-      balance: 0,
-      balanceCents: 0,
+      balance: centsToMoney(balanceCents),
+      balanceCents,
       currency: "EUR",
       groupsCount: groups.length,
       expenseCount: groups.reduce((sum, group) => sum + group.expenses.length, 0),
@@ -120,10 +277,15 @@ export const splitApi = {
       userId: useAuthStore.getState().user?.id ?? null,
       archivedAt: null,
     });
-    const members = input.members.length ? input.members : [{ name: "Me", isCurrentUser: true }];
+    const currentUser = useAuthStore.getState().user;
+    const inputMembers = input.members?.length ? input.members : [];
+    const hasCurrent = inputMembers.some((member) => member.isCurrentUser || member.userId === currentUser?.id || member.name.toLowerCase() === "me");
+    const members = hasCurrent
+      ? inputMembers
+      : [{ name: "Me", email: currentUser?.email ?? null, userId: currentUser?.id ?? null, isCurrentUser: true }, ...inputMembers];
     await Promise.all(
       members.map((member) =>
-        localDb.create("splitMembers", {
+      localDb.create("splitMembers", {
           groupId: group.id,
           name: member.name,
           email: member.email ?? null,
@@ -255,34 +417,23 @@ export const splitApi = {
     const expense = await localDb.create("splitExpenses", {
       groupId,
       title: input.title,
-      amount: input.amountCents / 100,
-      paidByMemberId: input.paidByMemberId,
-      date: input.date,
-      notes: input.notes ?? null,
-    });
-    return {
-      id: expense.id,
-      groupId,
-      paidByMemberId: input.paidByMemberId,
-      title: input.title,
       category: input.category ?? null,
       amount: input.amountCents / 100,
       amountCents: input.amountCents,
-      currency: "EUR",
+      paidByMemberId: input.paidByMemberId,
       date: input.date,
       splitType: input.splitType,
       notes: input.notes ?? null,
-      createdAt: expense.createdAt ?? new Date().toISOString(),
-      updatedAt: expense.updatedAt ?? new Date().toISOString(),
       shares: input.shares.map((share) => ({
         memberId: share.memberId,
-        amount: (share.amountCents ?? 0) / 100,
         amountCents: share.amountCents ?? 0,
+        percentage: share.percentage,
       })),
-      group: { id: groupId, name: "", currency: "EUR" },
-      paidBy: undefined,
-      balanceEffect: [],
-    } as SplitExpense;
+    });
+    if (isOnlineAccount()) {
+      await syncQueue.enqueue({ entityType: "splitExpense", entityId: expense.id, operation: "CREATE", payload: { groupId, ...input } });
+    }
+    return (await this.getExpenses(groupId)).find((item) => item.id === expense.id) as SplitExpense;
   },
   async getExpenses(groupId: string) {
     if (isOnlineAccount()) {
@@ -292,25 +443,7 @@ export const splitApi = {
         // Local fallback below.
       }
     }
-    const expenses = (await localDb.list("splitExpenses")).filter((expense) => expense.groupId === groupId);
-    return expenses.map((expense) => ({
-      id: expense.id,
-      groupId,
-      paidByMemberId: expense.paidByMemberId ?? "",
-      title: expense.title,
-      amount: expense.amount,
-      amountCents: Math.round(expense.amount * 100),
-      currency: "EUR",
-      date: expense.date,
-      splitType: "EQUAL" as const,
-      notes: expense.notes ?? null,
-      createdAt: expense.createdAt ?? new Date().toISOString(),
-      updatedAt: expense.updatedAt ?? new Date().toISOString(),
-      shares: [],
-      group: { id: groupId, name: "", currency: "EUR" },
-      paidBy: undefined,
-      balanceEffect: [],
-    } as SplitExpense));
+    return (await localGroups()).find((group) => group.id === groupId)?.expenses ?? [];
   },
   async getExpense(expenseId: string) {
     if (isOnlineAccount()) {
@@ -320,26 +453,29 @@ export const splitApi = {
         // Local fallback below.
       }
     }
-    const expense = (await localDb.list("splitExpenses")).find((item) => item.id === expenseId);
+    const groups = await localGroups();
+    const group = groups.find((item) => item.expenses.some((expense) => expense.id === expenseId));
+    const expense = group?.expenses.find((item) => item.id === expenseId);
     if (!expense) throw new Error("Split expense not found");
-    return {
-      id: expense.id,
-      groupId: expense.groupId,
-      paidByMemberId: expense.paidByMemberId ?? "",
-      title: expense.title,
-      amount: expense.amount,
-      amountCents: Math.round(expense.amount * 100),
-      currency: "EUR",
-      date: expense.date,
-      splitType: "EQUAL" as const,
-      notes: expense.notes ?? null,
-      createdAt: expense.createdAt ?? new Date().toISOString(),
-      updatedAt: expense.updatedAt ?? new Date().toISOString(),
-      shares: [],
-      group: { id: expense.groupId, name: "", currency: "EUR" },
-      paidBy: undefined,
-      balanceEffect: [],
-    } as SplitExpense;
+    const balanceEffect = simplifyLocalDebts(
+      (group?.members ?? []).map((member) => {
+        const paid = expense.paidByMemberId === member.id ? expense.amountCents : 0;
+        const share = expense.shares.find((item) => item.memberId === member.id)?.amountCents ?? 0;
+        return {
+          memberId: member.id,
+          member,
+          totalPaidCents: paid,
+          totalPaid: centsToMoney(paid),
+          totalShareCents: share,
+          totalShare: centsToMoney(share),
+          settlementCents: 0,
+          settlement: 0,
+          netCents: paid - share,
+          net: centsToMoney(paid - share),
+        };
+      }),
+    );
+    return { ...expense, balanceEffect };
   },
   async updateExpense(expenseId: string, input: Partial<CreateSplitExpenseInput>) {
     if (isOnlineAccount()) {
@@ -352,9 +488,17 @@ export const splitApi = {
     await localDb.update("splitExpenses", expenseId, {
       title: input.title,
       amount: input.amountCents ? input.amountCents / 100 : undefined,
+      amountCents: input.amountCents,
+      category: input.category,
       paidByMemberId: input.paidByMemberId,
       date: input.date,
+      splitType: input.splitType,
       notes: input.notes,
+      shares: input.shares?.map((share) => ({
+        memberId: share.memberId,
+        amountCents: share.amountCents ?? 0,
+        percentage: share.percentage,
+      })),
     });
     return this.getExpense(expenseId);
   },
@@ -377,8 +521,7 @@ export const splitApi = {
         // Local fallback below.
       }
     }
-    void groupId;
-    return [];
+    return (await localGroups()).find((group) => group.id === groupId)?.balances ?? [];
   },
   async recordSettlement(groupId: string, input: RecordSettlementInput) {
     if (isOnlineAccount()) {
@@ -388,17 +531,22 @@ export const splitApi = {
         // Local fallback below.
       }
     }
-    return {
-      id: `settlement_${Date.now()}`,
+    const settlement = await localDb.create("splitSettlements", {
       groupId,
       fromMemberId: input.fromMemberId,
       toMemberId: input.toMemberId,
       amount: input.amountCents / 100,
       amountCents: input.amountCents,
       currency: "EUR",
-      date: input.date ?? new Date().toISOString(),
+      date: input.date ?? new Date().toISOString().slice(0, 10),
       notes: input.notes ?? null,
-    };
+      status: "paid",
+      paidAt: new Date().toISOString(),
+    });
+    if (isOnlineAccount()) {
+      await syncQueue.enqueue({ entityType: "splitSettlement", entityId: settlement.id, operation: "CREATE", payload: { groupId, ...input } });
+    }
+    return (await this.getSettlements(groupId)).find((item) => item.id === settlement.id) as SplitSettlement;
   },
   async getSettlements(groupId: string) {
     if (isOnlineAccount()) {
@@ -408,8 +556,7 @@ export const splitApi = {
         // Local fallback below.
       }
     }
-    void groupId;
-    return [];
+    return (await localGroups()).find((group) => group.id === groupId)?.settlements ?? [];
   },
   async deleteSettlement(settlementId: string) {
     if (isOnlineAccount()) {
@@ -429,7 +576,51 @@ export const splitApi = {
         // Local fallback below.
       }
     }
-    return [];
+    const groups = await localGroups();
+    const friends = new Map<string, SplitFriendBalance>();
+    for (const group of groups) {
+      const currentMember = group.members.find((member) => member.isCurrentUser);
+      if (!currentMember) continue;
+      for (const debt of group.simplifiedDebts ?? []) {
+        const friend =
+          debt.fromMemberId === currentMember.id
+            ? debt.toMember
+            : debt.toMemberId === currentMember.id
+              ? debt.fromMember
+              : null;
+        if (!friend) continue;
+        const currentPerspective = debt.toMemberId === currentMember.id ? debt.amountCents : -debt.amountCents;
+        const key = memberKey(friend);
+        const existing = friends.get(key) ?? {
+          id: key,
+          name: friend.name,
+          email: friend.email,
+          isRegisteredUser: friend.isRegisteredUser,
+          memberIds: [],
+          balance: 0,
+          balanceCents: 0,
+          currency: group.currency,
+          groups: [],
+          expenses: [],
+          settlements: [],
+        };
+        existing.balanceCents += currentPerspective;
+        existing.balance = centsToMoney(existing.balanceCents);
+        existing.memberIds = Array.from(new Set([...existing.memberIds, friend.id]));
+        existing.groups.push({
+          groupId: group.id,
+          groupName: group.name,
+          balance: centsToMoney(currentPerspective),
+          balanceCents: currentPerspective,
+          expenses: group.expenses.filter((expense) => expense.paidByMemberId === friend.id || expense.shares.some((share) => share.memberId === friend.id)),
+          settlements: group.settlements.filter((settlement) => settlement.fromMemberId === friend.id || settlement.toMemberId === friend.id),
+        });
+        existing.expenses = [...(existing.expenses ?? []), ...group.expenses];
+        existing.settlements = [...(existing.settlements ?? []), ...group.settlements];
+        friends.set(key, existing);
+      }
+    }
+    return Array.from(friends.values()).sort((a, b) => Math.abs(b.balanceCents) - Math.abs(a.balanceCents));
   },
   async getFriend(friendId: string) {
     if (isOnlineAccount()) {
@@ -439,15 +630,9 @@ export const splitApi = {
         // Local fallback below.
       }
     }
-    return {
-      id: friendId,
-      name: "Local member",
-      memberIds: [friendId],
-      balance: 0,
-      balanceCents: 0,
-      currency: "EUR",
-      groups: [],
-    };
+    const friend = (await this.getFriendsBalances()).find((item) => item.id === friendId || item.memberIds.includes(friendId));
+    if (!friend) throw new Error("Friend balance not found");
+    return friend;
   },
   async getActivity() {
     if (isOnlineAccount()) {

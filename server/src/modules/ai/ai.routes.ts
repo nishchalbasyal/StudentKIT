@@ -6,9 +6,11 @@ import {
   expenseAdvice,
   groceryAdvice,
   latestInsights,
+  requestAI,
+  status,
   studyPlan,
   weeklySummary,
-  workLimitWarning
+  workLimitWarning,
 } from "./ai.controller.js";
 import { studyPlanSchema } from "./ai.schemas.js";
 
@@ -16,6 +18,8 @@ export const aiRoutes = Router();
 
 aiRoutes.use(authenticate);
 aiRoutes.use(aiRateLimit);
+aiRoutes.get("/status", status);
+aiRoutes.post("/request", requestAI);
 aiRoutes.get("/insights/latest", latestInsights);
 aiRoutes.post("/expense-advice", expenseAdvice);
 aiRoutes.post("/weekly-summary", weeklySummary);

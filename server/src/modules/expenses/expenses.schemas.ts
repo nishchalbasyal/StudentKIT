@@ -16,10 +16,13 @@ export const expenseSchema = z.object({
     "OTHER"
   ]),
   date: z.string().date(),
+  type: z.enum(["personal", "split", "group"]).default("personal"),
+  paidBy: z.string().trim().max(120).optional().nullable(),
   paymentMethod: z
     .enum(["CASH", "CARD", "BANK_TRANSFER", "PAYPAL", "OTHER"])
     .default("OTHER"),
-  notes: z.string().trim().max(1000).optional()
+  notes: z.string().trim().max(1000).optional(),
+  note: z.string().trim().max(1000).optional()
 });
 
 export const updateExpenseSchema = expenseSchema.partial();
@@ -50,4 +53,3 @@ export type MonthlyExpenseQuery = z.infer<typeof monthlyExpenseQuerySchema>;
 export type CategorySummaryQuery = z.infer<typeof categorySummaryQuerySchema>;
 export type BudgetInput = z.infer<typeof budgetSchema>;
 export type UpdateBudgetInput = z.infer<typeof updateBudgetSchema>;
-

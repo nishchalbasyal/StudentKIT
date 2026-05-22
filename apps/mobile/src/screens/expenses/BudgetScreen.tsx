@@ -69,7 +69,7 @@ export function BudgetScreen() {
               <AppButton title="Edit" variant="secondary" onPress={() => {
                 setEditingId(item.id);
                 setAmount(String(item.budgetedAmount));
-                setCategory(item.category);
+                setCategory(item.category ?? null);
               }} />
               <AppButton title="Delete" variant="danger" onPress={() => Alert.alert("Delete budget?", "This cannot be undone.", [
                 { text: "Cancel", style: "cancel" },

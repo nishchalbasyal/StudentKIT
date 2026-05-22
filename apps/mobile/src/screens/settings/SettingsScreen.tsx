@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Alert,
   Modal,
@@ -16,10 +16,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { AppButton } from "../../components/ui/AppButton";
 import { ComingSoonAIToast } from "../../components/ui/ComingSoonAIToast";
-import { CountrySelector } from "../../components/ui/CountrySelector";
-import { AppInput } from "../../components/ui/AppInput";
 import { AppTopBar } from "../../components/ui/AppTopBar";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { LoadingState } from "../../components/ui/LoadingState";
@@ -32,6 +29,7 @@ import {
 } from "../../constants/colors";
 import { useAuth } from "../../hooks/useAuth";
 import { useSettings } from "../../hooks/useSettings";
+import { useWorkLimitSettings } from "../../hooks/useWorkLimitSettings";
 import { useUserProfile } from "../../hooks/useUserProfile";
 import type { RootStackParamList } from "../../navigation/types";
 import {
@@ -40,8 +38,9 @@ import {
   getOnboardingPreferences,
 } from "../../storage/settingsStorage";
 import { moduleOptions } from "../../services/modulePreferenceService";
-import { formatCurrency } from "../../utils/formatCurrency";
 import { requestNotificationPermission } from "../../utils/notifications";
+import { describeWorkLimitSettings } from "../../utils/workLimit";
+import { defaultWorkLimitSettings } from "../../api/workLimit.api";
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>;
 
@@ -52,36 +51,30 @@ export function SettingsScreen() {
   const profile = useUserProfile();
   const settingsHook = useSettings();
   const settings = settingsHook.settings;
+  const workLimitHook = useWorkLimitSettings();
+  const workLimitSettings = workLimitHook.settings;
   const isGuest = !isAuthenticated;
-  const [workCountry, setWorkCountry] = useState("DE");
-  const [yearlyLimit, setYearlyLimit] = useState("140");
-  const [defaultWage, setDefaultWage] = useState("");
   const [toastVisible, setToastVisible] = useState(false);
   const [debugVisible, setDebugVisible] = useState(false);
   const [debugContent, setDebugContent] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!settings?.work) return;
-    setWorkCountry(settings.work.workCountry);
-    setYearlyLimit(String(settings.work.yearlyWorkLimitDays));
-    setDefaultWage(
-      settings.work.defaultHourlyWage
-        ? String(settings.work.defaultHourlyWage)
-        : "",
-    );
-  }, [settings?.work]);
-
-  if (settingsHook.isLoading || profile.isLoading) {
+  if (settingsHook.isLoading || profile.isLoading || workLimitHook.isLoading) {
     return <LoadingState label="Loading settings" />;
   }
 
-  if (settingsHook.isError || profile.isError || !settings) {
+  if (
+    settingsHook.isError ||
+    profile.isError ||
+    workLimitHook.isError ||
+    !settings
+  ) {
     return (
       <ErrorState
         message="Could not load settings."
         onRetry={() => {
           void settingsHook.refetch();
           void profile.refetch();
+          void workLimitHook.refetch();
         }}
       />
     );
@@ -90,30 +83,6 @@ export function SettingsScreen() {
   const showToast = () => {
     setToastVisible(true);
     setTimeout(() => setToastVisible(false), 3000);
-  };
-
-  const saveWork = async () => {
-    const limit = Number(yearlyLimit);
-    const wage = defaultWage.trim() ? Number(defaultWage) : null;
-    if (!workCountry.trim() || workCountry.trim().length !== 2)
-      return Alert.alert("Country", "Use a two-letter country code.");
-    if (!Number.isFinite(limit) || limit < 1 || limit > 366)
-      return Alert.alert(
-        "Work limit",
-        "Yearly limit must be between 1 and 366 days.",
-      );
-    if (wage !== null && (!Number.isFinite(wage) || wage <= 0))
-      return Alert.alert(
-        "Default wage",
-        "Default hourly wage must be positive.",
-      );
-
-    await settingsHook.updateWork({
-      workCountry: workCountry.trim().toUpperCase(),
-      yearlyWorkLimitDays: limit,
-      defaultHourlyWage: wage,
-    });
-    showToast();
   };
 
   const deleteAccount = () => {
@@ -153,7 +122,7 @@ export function SettingsScreen() {
       >
         <AppTopBar title="Settings" avatarText={profile.user?.name ?? "ST"} />
 
-        <Section title="Account">
+        <Section title="Account" defaultExpanded collapsible={false}>
           <ActionRow
             icon="person-outline"
             label="Personal Information"
@@ -185,7 +154,7 @@ export function SettingsScreen() {
           />
         </Section>
 
-        <Section title="Notifications">
+        <Section title="Notifications" defaultExpanded={false} collapsible>
           <ToggleRow
             label="Push Notifications"
             icon="notifications-outline"
@@ -292,7 +261,7 @@ export function SettingsScreen() {
           />
         </Section>
 
-        <Section title="App Preferences">
+        <Section title="App Preferences" defaultExpanded={false} collapsible>
           <ChoiceRow
             label="Theme"
             value={settings.preferences.theme}
@@ -318,16 +287,6 @@ export function SettingsScreen() {
             }
           />
           <ChoiceRow
-            label="Date format"
-            value={settings.preferences.dateFormat}
-            options={["DD.MM.YYYY", "MM/DD/YYYY", "YYYY-MM-DD"]}
-            onSelect={(dateFormat) =>
-              void settingsHook
-                .updatePreferences({ dateFormat })
-                .then(showToast)
-            }
-          />
-          <ChoiceRow
             label="Time format"
             value={settings.preferences.timeFormat}
             options={["24H", "12H"]}
@@ -340,7 +299,7 @@ export function SettingsScreen() {
           />
         </Section>
 
-        <Section title="AI Settings">
+        <Section title="AI Settings" defaultExpanded={false} collapsible>
           <ToggleRow
             label="Enable AI suggestions"
             icon="sparkles-outline"
@@ -372,51 +331,29 @@ export function SettingsScreen() {
           />
         </Section>
 
-        <Section title="Work Settings">
-          <CountrySelector
-            value={workCountry}
-            onChange={(country) => {
-              setWorkCountry(country.code);
-              if (country.studentWorkLimitDays)
-                setYearlyLimit(String(country.studentWorkLimitDays));
-              void settingsHook
-                .updatePreferences({
-                  currency: country.defaultCurrency,
-                  timeFormat: country.defaultTimeFormat,
-                })
-                .then(showToast);
-            }}
-          />
-          <AppInput
-            label="Yearly limit days"
-            value={yearlyLimit}
-            onChangeText={setYearlyLimit}
-            keyboardType="number-pad"
-          />
-          <AppInput
-            label="Default hourly wage"
-            value={defaultWage}
-            onChangeText={setDefaultWage}
-            keyboardType="decimal-pad"
-            placeholder="14.05"
-          />
-          <Text style={styles.helpText}>
-            Current default:{" "}
-            {formatCurrency(
-              Number(settings.work.defaultHourlyWage ?? 0),
-              settings.preferences.currency,
-            )}
-            /h
-          </Text>
-          <AppButton
-            title="Save Work Settings"
-            loading={settingsHook.isSaving}
-            disabled={settingsHook.isSaving}
-            onPress={saveWork}
-          />
+        <Section title="Work Limit" defaultExpanded collapsible={false}>
+          <View style={styles.workCardContent}>
+            <ActionRow
+              icon="briefcase-outline"
+              label="Open work limit settings"
+              detail={describeWorkLimitSettings(
+                workLimitSettings ?? defaultWorkLimitSettings,
+              )}
+              onPress={() => navigation.navigate("WorkLimitSettings")}
+            />
+            <InfoRow
+              label="Banner"
+              value={
+                workLimitSettings?.hasDismissedUnlimitedLimitBanner
+                  ? "Dismissed"
+                  : "Ready to show"
+              }
+              last
+            />
+          </View>
         </Section>
 
-        <Section title="Modules">
+        <Section title="Modules" defaultExpanded collapsible={false}>
           {moduleOptions.map((m) => (
             <ToggleRow
               key={m.key}
@@ -432,14 +369,13 @@ export function SettingsScreen() {
           ))}
         </Section>
 
-        <Section title="Danger Zone">
+        <Section title="Danger Zone" defaultExpanded={false} collapsible>
           <InfoRow label="Mode" value={isGuest ? "Guest mode" : "Logged in"} />
           <InfoRow
             label="Selected modules"
-            value={Object.entries(settings.userEnabledModules ?? defaultModules)
-              .filter(([, enabled]) => enabled)
-              .map(([key]) => key)
-              .join(", ")}
+            value={summarizeModules(
+              settings.userEnabledModules ?? defaultModules,
+            )}
           />
           <ActionRow
             icon="log-out-outline"
@@ -517,15 +453,6 @@ export function SettingsScreen() {
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.card}>{children}</View>
-    </View>
-  );
-}
-
 function ToggleRow({
   icon,
   label,
@@ -597,12 +524,69 @@ function ActionRow({
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({
+  label,
+  value,
+  last,
+}: {
+  label: string;
+  value: string;
+  last?: boolean;
+}) {
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, last && styles.last]}>
       <Ionicons name="server-outline" size={21} color={colors.primary} />
       <Text style={styles.rowLabel}>{label}</Text>
       <Text style={styles.detailStrong}>{value}</Text>
+    </View>
+  );
+}
+
+function summarizeModules(modules: Record<string, boolean>) {
+  const enabled = Object.entries(modules)
+    .filter(([, value]) => value)
+    .map(([key]) => key);
+
+  if (enabled.length === 0) return "None";
+  if (enabled.length <= 3) return enabled.join(", ");
+  return `${enabled.slice(0, 3).join(", ")} +${enabled.length - 3} more`;
+}
+
+function Section({
+  title,
+  children,
+  defaultExpanded = true,
+  collapsible = false,
+}: {
+  title: string;
+  children: ReactNode;
+  defaultExpanded?: boolean;
+  collapsible?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const isExpanded = !collapsible || expanded;
+
+  return (
+    <View style={styles.section}>
+      <Pressable
+        accessibilityRole={collapsible ? "button" : undefined}
+        onPress={collapsible ? () => setExpanded((value) => !value) : undefined}
+        style={({ pressed }) => [
+          styles.sectionHeader,
+          collapsible && styles.sectionHeaderInteractive,
+          pressed && collapsible && styles.pressed,
+        ]}
+      >
+        <Text style={styles.sectionTitle}>{title}</Text>
+        {collapsible ? (
+          <Ionicons
+            name={expanded ? "chevron-up-outline" : "chevron-down-outline"}
+            size={18}
+            color={colors.muted}
+          />
+        ) : null}
+      </Pressable>
+      {isExpanded ? <View style={styles.card}>{children}</View> : null}
     </View>
   );
 }
@@ -613,12 +597,14 @@ function ChoiceRow<T extends string>({
   options,
   onSelect,
   last,
+  labels,
 }: {
   label: string;
   value: T;
   options: T[];
   onSelect: (value: T) => void;
   last?: boolean;
+  labels?: Partial<Record<T, string>>;
 }) {
   return (
     <View style={[styles.choiceRow, last && styles.last]}>
@@ -635,7 +621,7 @@ function ChoiceRow<T extends string>({
               <Text
                 style={[styles.choiceText, active && styles.choiceTextActive]}
               >
-                {option}
+                {labels?.[option] ?? option}
               </Text>
             </Pressable>
           );
@@ -649,6 +635,15 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, gap: spacing.md },
   section: { gap: spacing.sm },
+  sectionHeader: {
+    minHeight: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  sectionHeaderInteractive: {
+    paddingVertical: spacing.xs,
+  },
   sectionTitle: {
     color: colors.text,
     fontSize: fontSize.section,
@@ -662,6 +657,18 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     paddingHorizontal: spacing.lg,
     ...shadows.soft,
+  },
+  quickButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.softGreen,
+  },
+  workCardContent: {
+    gap: spacing.md,
+    paddingVertical: spacing.lg,
   },
   row: {
     minHeight: 68,
@@ -688,6 +695,8 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: fontSize.body,
     fontWeight: "800",
+    flexShrink: 1,
+    textAlign: "right",
     textTransform: "capitalize",
   },
   last: { borderBottomWidth: 0 },

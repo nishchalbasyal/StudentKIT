@@ -37,7 +37,7 @@ export function buildStudentFeed(
   if (data.month.expenses > 0) {
     feed.push({
       id: "money-tip",
-      title: "Money tip",
+      title: "Expense tip",
       message:
         data.month.savings >= 0
           ? "You are still in positive savings this month. Keep logging small expenses."

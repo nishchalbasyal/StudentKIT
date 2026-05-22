@@ -21,6 +21,7 @@ import { AppTimePicker } from "../ui/AppTimePicker";
 import { StickySaveButton } from "../ui/StickySaveButton";
 import { FormSectionCard } from "../ui/FormSectionCard";
 import { useWorkHours } from "../../hooks/useWorkHours";
+import { useSettings } from "../../hooks/useSettings";
 import type { Company } from "../../types/company.types";
 import type { WorkShiftInput } from "../../types/work.types";
 import type { RootStackParamList } from "../../navigation/types";
@@ -34,6 +35,8 @@ import {
   type WorkShiftFormValues,
 } from "../../validators/work.schema";
 import { calculateWorkDuration } from "../../utils/workMath";
+import { defaultSettings } from "../../storage/settingsStorage";
+import { describeWorkLimit } from "../../utils/workLimit";
 
 type Props = {
   onSubmit: (values: WorkShiftInput) => Promise<void>;
@@ -57,6 +60,8 @@ export function WorkShiftForm({
   const [showMore, setShowMore] = useState(false);
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const settingsHook = useSettings();
+  const workSettings = settingsHook.settings ?? defaultSettings;
   const today = toDateValue(new Date());
   const { workShifts } = useWorkHours();
   const defaultValues: WorkShiftFormValues = {
@@ -298,7 +303,9 @@ export function WorkShiftForm({
                       ))}
                     </View>
                     {fieldState.error ? (
-                      <Text style={styles.error}>{fieldState.error.message}</Text>
+                      <Text style={styles.error}>
+                        {fieldState.error.message}
+                      </Text>
                     ) : null}
                   </View>
                 )}
@@ -324,7 +331,9 @@ export function WorkShiftForm({
                       />
                     </View>
                     {fieldState.error ? (
-                      <Text style={styles.error}>{fieldState.error.message}</Text>
+                      <Text style={styles.error}>
+                        {fieldState.error.message}
+                      </Text>
                     ) : null}
                   </View>
                 )}
@@ -346,6 +355,10 @@ export function WorkShiftForm({
             </View>
           </View>
 
+          <Text style={styles.limitNote}>
+            Active work limit: {describeWorkLimit(workSettings)}
+          </Text>
+
           {duration.warning ? (
             <Text style={styles.warning}>{duration.warning}</Text>
           ) : null}
@@ -354,7 +367,10 @@ export function WorkShiftForm({
         <Pressable
           accessibilityRole="button"
           onPress={() => setShowMore((value) => !value)}
-          style={({ pressed }) => [styles.moreButton, pressed && styles.pressed]}
+          style={({ pressed }) => [
+            styles.moreButton,
+            pressed && styles.pressed,
+          ]}
         >
           <Text style={styles.moreButtonText}>
             {showMore ? "Hide optional details" : "More options"}
@@ -521,6 +537,12 @@ const styles = StyleSheet.create({
     fontSize: fontSize.body,
     fontWeight: "700",
     marginTop: spacing.xs,
+  },
+  limitNote: {
+    color: colors.muted,
+    fontSize: fontSize.caption,
+    fontWeight: "700",
+    lineHeight: 18,
   },
   previewDivider: {
     width: 1,

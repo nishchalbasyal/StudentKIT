@@ -105,7 +105,7 @@ export function AddEditSplitExpenseScreen() {
             <EmptyState
               title="Create a group first"
               message="Shared expenses need a split group and members."
-              actionLabel="Create Group"
+              actionLabel="Create Expense"
               onAction={() => navigation.navigate("AddEditSplitGroup")}
             />
           ) : (

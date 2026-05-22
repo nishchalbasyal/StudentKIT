@@ -37,6 +37,7 @@ export const splitShareSchema = z.object({
   memberId: z.string().min(1),
   amount: z.coerce.number().positive().optional(),
   amountCents: z.coerce.number().int().positive().optional(),
+  percentage: z.coerce.number().positive().max(100).optional(),
 });
 
 const splitExpenseInputSchema = z.object({
@@ -46,7 +47,7 @@ const splitExpenseInputSchema = z.object({
   amount: z.coerce.number().positive().optional(),
   amountCents: z.coerce.number().int().positive().optional(),
   date: z.string().date(),
-  splitType: z.enum(["EQUAL", "CUSTOM"]).default("EQUAL"),
+  splitType: z.enum(["EQUAL", "CUSTOM", "PERCENTAGE"]).default("EQUAL"),
   notes: z.string().trim().max(1000).optional().nullable(),
   shares: z.array(splitShareSchema).min(1),
 });

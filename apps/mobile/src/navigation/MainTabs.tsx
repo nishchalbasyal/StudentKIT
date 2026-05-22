@@ -24,10 +24,9 @@ import { useRoute, type RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DashboardScreen } from "../screens/dashboard/DashboardScreen";
 import { WorkHoursScreen } from "../screens/work/WorkHoursScreen";
-import { ExpensesScreen } from "../screens/expenses/ExpensesScreen";
+import { MoneyScreen } from "../screens/money/MoneyScreen";
 import { TasksScreen } from "../screens/tasks/TasksScreen";
-import { MoreScreen } from "../screens/more/MoreScreen";
-import { SplitGroupsScreen } from "../screens/split/SplitGroupsScreen";
+import { ProfileScreen } from "../screens/profile/ProfileScreen";
 import { colors, fontSize, radius, spacing } from "../constants/colors";
 import { modulePreferenceService } from "../services/modulePreferenceService";
 import { useSettings } from "../hooks/useSettings";
@@ -39,7 +38,7 @@ type MainRoute = RouteProp<RootStackParamList, "Main">;
 type MainPage = {
   key: keyof Pick<
     MainTabParamList,
-    "Dashboard" | "Work" | "Expenses" | "Tasks" | "Splits" | "More"
+    "Dashboard" | "Tasks" | "Money" | "Work" | "Profile"
   >;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
@@ -72,15 +71,6 @@ export function MainTabs() {
   }, [settingsHook.settings]);
 
   const pages = useMemo<MainPage[]>(() => {
-    const enabled = modules ?? {
-      work: true,
-      money: true,
-      splits: true,
-      tasks: true,
-      groceries: true,
-      cleaning: true,
-      ai: false,
-    };
     const next: MainPage[] = [
       {
         key: "Dashboard",
@@ -90,43 +80,34 @@ export function MainTabs() {
       },
     ];
 
-    if (enabled.work)
-      next.push({
-        key: "Work",
-        label: "Work",
-        icon: "briefcase-outline",
-        render: () => <WorkHoursScreen />,
-      });
 
-    if (enabled.money || enabled.groceries)
-      next.push({
-        key: "Expenses",
-        label: "Money",
-        icon: "cash-outline",
-        render: () => <ExpensesScreen />,
-      });
-
-    if (enabled.splits)
-      next.push({
-        key: "Splits",
-        label: "Splits",
-        icon: "people-outline",
-        render: () => <SplitGroupsScreen />,
-      });
-
-    if (enabled.tasks)
-      next.push({
-        key: "Tasks",
-        label: "Tasks",
-        icon: "checkmark-circle-outline",
-        render: () => <TasksScreen />,
-      });
 
     next.push({
-      key: "More",
-      label: "More",
-      icon: "grid-outline",
-      render: () => <MoreScreen />,
+      key: "Money",
+      label: "Expense",
+      icon: "cash-outline",
+      render: () => <MoneyScreen />,
+    });
+
+    next.push({
+      key: "Work",
+      label: "Work",
+      icon: "briefcase-outline",
+      render: () => <WorkHoursScreen />,
+    });
+    
+     next.push({
+          key: "Tasks",
+          label: "Tasks",
+          icon: "checkmark-circle-outline",
+          render: () => <TasksScreen />,
+        });
+
+    next.push({
+      key: "Profile",
+      label: "Profile",
+      icon: "person-circle-outline",
+      render: () => <ProfileScreen />,
     });
 
     return next;
@@ -145,7 +126,13 @@ export function MainTabs() {
     const requestedScreen = route.params?.screen;
     if (!requestedScreen) return;
 
-    const nextIndex = pages.findIndex((page) => page.key === requestedScreen);
+    const normalizedScreen =
+      requestedScreen === "Expenses" || requestedScreen === "Splits"
+        ? "Money"
+        : requestedScreen === "More"
+          ? "Profile"
+          : requestedScreen;
+    const nextIndex = pages.findIndex((page) => page.key === normalizedScreen);
     if (nextIndex >= 0) {
       requestAnimationFrame(() => goToIndex(nextIndex, false));
     }
@@ -168,7 +155,10 @@ export function MainTabs() {
   return (
     <View style={styles.shell}>
       {activeIndex !== 0 ? (
-        <View style={[styles.quickActions, { bottom: quickBottom }]} pointerEvents="box-none">
+        <View
+          style={[styles.quickActions, { bottom: quickBottom }]}
+          pointerEvents="box-none"
+        >
           <Pressable
             accessibilityRole="button"
             onPress={() => goToIndex(0)}

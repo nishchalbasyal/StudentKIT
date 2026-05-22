@@ -185,8 +185,8 @@ function GroupsTab({
     return (
       <EmptyState
         title="No split groups yet"
-        message="Create a group to split rent, groceries, trips, or parties."
-        actionLabel="Create Group"
+        message="Create a Expense  to split rent, groceries, trips, or parties."
+        actionLabel="Create Expense"
         onAction={() => navigation.navigate("AddEditSplitGroup")}
       />
     );
@@ -326,7 +326,7 @@ function FriendsTab({ navigation }: { navigation: Navigation }) {
       <EmptyState
         title="No friends yet"
         message="Add friends or create a group to see friend-wise balances."
-        actionLabel="Create Group"
+        actionLabel="Create Expense"
         onAction={() => navigation.navigate("AddEditSplitGroup")}
       />
     );

@@ -164,7 +164,7 @@ export function DashboardScreen() {
         ]),
     },
     {
-      title: "Money",
+      title: "Expense",
       subtitle: "Your spending is okay",
       icon: "wallet-outline" as const,
       stats: [
@@ -176,7 +176,7 @@ export function DashboardScreen() {
       color: colors.infoSoft,
       onPress: () => navigation.navigate("AddExpense"),
       onOptions: () =>
-        Alert.alert("Money Options", "Choose an action", [
+        Alert.alert("Expense Options", "Choose an action", [
           {
             text: "Add Expense",
             onPress: () => navigation.navigate("AddExpense"),

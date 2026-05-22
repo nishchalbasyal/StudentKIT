@@ -25,7 +25,7 @@ export function buildHomeInsights(
   if (data.month.expenses > 0) {
     insights.push({
       id: "local-savings",
-      title: "Money check",
+      title: "Expense check",
       message:
         data.month.savings >= 0
           ? `You have ${formatCurrency(data.month.savings, currency)} left after expenses this month.`

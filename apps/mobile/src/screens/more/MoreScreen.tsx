@@ -8,7 +8,10 @@ import { AppHeader } from "../../components/ui/AppHeader";
 import { ListRow } from "../../components/ui/ListRow";
 import { colors, fontSize, spacing } from "../../constants/colors";
 import type { RootStackParamList } from "../../navigation/types";
-import { moduleOptions, modulePreferenceService } from "../../services/modulePreferenceService";
+import {
+  moduleOptions,
+  modulePreferenceService,
+} from "../../services/modulePreferenceService";
 import { useAuthStore } from "../../store/authStore";
 import type { UserEnabledModules } from "../../storage/settingsStorage";
 import { useSettings } from "../../hooks/useSettings";
@@ -19,23 +22,58 @@ const sections = [
   {
     title: "Life",
     items: [
-      { label: "Groceries", subtitle: "Shopping list and price memory", icon: "basket-outline" as const, route: "Groceries" as const },
-      { label: "Cleaning", subtitle: "Roommate routines and reminders", icon: "sparkles-outline" as const, route: "Cleaning" as const },
-      { label: "AI Assistant", subtitle: "Ask StudentKit to organize something", icon: "chatbubble-ellipses-outline" as const, route: "AIAssistant" as const },
+      {
+        label: "Groceries",
+        subtitle: "Shopping list and price memory",
+        icon: "basket-outline" as const,
+        route: "Groceries" as const,
+      },
+      {
+        label: "Cleaning",
+        subtitle: "Roommate routines and reminders",
+        icon: "sparkles-outline" as const,
+        route: "Cleaning" as const,
+      },
+      {
+        label: "AI Assistant",
+        subtitle: "Ask StudentKit to organize something",
+        icon: "chatbubble-ellipses-outline" as const,
+        route: "AIAssistant" as const,
+      },
     ],
   },
   {
     title: "Discover",
     items: [
-      { label: "Coupons", subtitle: "Verified student offers", icon: "pricetag-outline" as const, route: "CouponsList" as const },
-      { label: "Events", subtitle: "Campus and city events", icon: "calendar-number-outline" as const, route: "EventsList" as const },
+      {
+        label: "Coupons",
+        subtitle: "Verified student offers",
+        icon: "pricetag-outline" as const,
+        route: "CouponsList" as const,
+      },
+      {
+        label: "Events",
+        subtitle: "Campus and city events",
+        icon: "calendar-number-outline" as const,
+        route: "EventsList" as const,
+      },
     ],
   },
   {
     title: "Account",
     items: [
-      { label: "Settings", subtitle: "Notifications, AI, language, work rules", icon: "settings-outline" as const, route: "Settings" as const },
-      { label: "Profile", subtitle: "Identity, student setup, app summary", icon: "person-outline" as const, route: "Profile" as const },
+      {
+        label: "Settings",
+        subtitle: "Notifications, AI, language, work rules",
+        icon: "settings-outline" as const,
+        route: "Settings" as const,
+      },
+      {
+        label: "Profile",
+        subtitle: "Identity, student setup, app summary",
+        icon: "person-outline" as const,
+        route: "Profile" as const,
+      },
     ],
   },
 ];
@@ -59,6 +97,8 @@ export function MoreScreen() {
       items: section.items.filter((item) => {
         if (item.route === "Groceries") return modules.groceries;
         if (item.route === "Cleaning") return modules.cleaning;
+        if (item.route === "CouponsList") return modules.coupons;
+        if (item.route === "EventsList") return modules.events;
         if (item.route === "AIAssistant") return true;
         return true;
       }),
@@ -77,11 +117,14 @@ export function MoreScreen() {
 
   const openFeature = (key: keyof UserEnabledModules) => {
     if (key === "money") navigation.navigate("Main", { screen: "Expenses" });
-    else if (key === "splits") navigation.navigate("Main", { screen: "Splits" });
+    else if (key === "splits")
+      navigation.navigate("Main", { screen: "Splits" });
     else if (key === "tasks") navigation.navigate("Main", { screen: "Tasks" });
     else if (key === "work") navigation.navigate("Main", { screen: "Work" });
     else if (key === "groceries") navigation.navigate("Groceries");
     else if (key === "cleaning") navigation.navigate("Cleaning");
+    else if (key === "coupons") navigation.navigate("CouponsList");
+    else if (key === "events") navigation.navigate("EventsList");
   };
 
   const enableFeature = async (key: keyof UserEnabledModules) => {
@@ -91,13 +134,19 @@ export function MoreScreen() {
       await settings.updateModules({ [key]: true });
       openFeature(key);
     } catch {
-      Alert.alert("Feature settings", "Could not turn on this feature right now.");
+      Alert.alert(
+        "Feature settings",
+        "Could not turn on this feature right now.",
+      );
     }
   };
 
   return (
     <SafeAreaView edges={["top"]} style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         <AppHeader title="More" avatarText={user?.name ?? "ST"} showSettings />
         {disabledModules.length ? (
           <View style={styles.section}>
@@ -151,6 +200,10 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: 132, gap: spacing.lg },
   section: { gap: spacing.sm },
-  sectionTitle: { color: colors.text, fontSize: fontSize.section, fontWeight: "900" },
+  sectionTitle: {
+    color: colors.text,
+    fontSize: fontSize.section,
+    fontWeight: "900",
+  },
   stack: { gap: spacing.sm },
 });

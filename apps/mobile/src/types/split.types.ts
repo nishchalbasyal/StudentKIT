@@ -1,4 +1,4 @@
-export type SplitType = "EQUAL" | "CUSTOM";
+export type SplitType = "EQUAL" | "CUSTOM" | "PERCENTAGE";
 
 export interface SplitGroup {
   id: string;
@@ -192,6 +192,7 @@ export interface CreateSplitExpenseInput {
   shares: Array<{
     memberId: string;
     amountCents?: number;
+    percentage?: number;
   }>;
 }
 

@@ -8,9 +8,15 @@ import {
   list,
   remove,
   summary,
+  sync,
   update,
 } from "./budgets.controller.js";
-import { budgetSummaryQuerySchema, createBudgetSchema, updateBudgetSchema } from "./budgets.schemas.js";
+import {
+  budgetSummaryQuerySchema,
+  budgetSyncSchema,
+  createBudgetSchema,
+  updateBudgetSchema,
+} from "./budgets.schemas.js";
 
 export const budgetsRoutes = Router();
 
@@ -20,5 +26,6 @@ budgetsRoutes.get("/current", current);
 budgetsRoutes.get("/summary", validateQuery(budgetSummaryQuerySchema), summary);
 budgetsRoutes.get("/:id", getById);
 budgetsRoutes.post("/", validateBody(createBudgetSchema), create);
+budgetsRoutes.post("/sync", validateBody(budgetSyncSchema), sync);
 budgetsRoutes.put("/:id", validateBody(updateBudgetSchema), update);
 budgetsRoutes.delete("/:id", remove);

@@ -39,10 +39,32 @@ export type LocalSplitMember = LocalEntity & {
 export type LocalSplitExpense = LocalEntity & {
   groupId: string;
   title: string;
+  category?: string | null;
   amount: number;
+  amountCents?: number;
   paidByMemberId?: string | null;
   date: string;
+  splitType?: "EQUAL" | "CUSTOM" | "PERCENTAGE";
   notes?: string | null;
+  shares?: Array<{
+    memberId: string;
+    amountCents: number;
+    percentage?: number;
+  }>;
+};
+
+export type LocalSplitSettlement = LocalEntity & {
+  groupId: string;
+  fromMemberId: string;
+  toMemberId: string;
+  amount: number;
+  amountCents?: number;
+  currency?: string;
+  date: string;
+  notes?: string | null;
+  status?: "pending" | "paid";
+  paidAt?: string | null;
+  relatedExpenseIds?: string[];
 };
 
 export type LocalCollections = {
@@ -58,6 +80,7 @@ export type LocalCollections = {
   splitGroups: LocalSplitGroup[];
   splitMembers: LocalSplitMember[];
   splitExpenses: LocalSplitExpense[];
+  splitSettlements: LocalSplitSettlement[];
 };
 
 export type LocalCollectionName = keyof LocalCollections;
@@ -209,6 +232,7 @@ export const localDb = {
         splitGroups: true,
         splitMembers: true,
         splitExpenses: true,
+        splitSettlements: true,
       }) as LocalCollectionName[]).map(storageKey),
     );
   },

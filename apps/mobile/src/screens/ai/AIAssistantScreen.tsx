@@ -34,7 +34,7 @@ export function AIAssistantScreen() {
 
         <Text style={styles.sectionTitle}>Daily AI Suggestions</Text>
         <View style={styles.suggestions}>
-          <Suggestion label="Money insight" icon="wallet-outline" onPress={showComingSoon} />
+          <Suggestion label="Expense insight" icon="wallet-outline" onPress={showComingSoon} />
           <Suggestion label="Work insight" icon="briefcase-outline" onPress={showComingSoon} />
           <Suggestion label="Study insight" icon="school-outline" onPress={showComingSoon} />
           <Suggestion label="Weekly recap" icon="calendar-outline" onPress={showComingSoon} />
