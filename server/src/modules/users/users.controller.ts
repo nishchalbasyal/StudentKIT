@@ -5,6 +5,10 @@ import { getUserId } from "../../utils/request.js";
 import { UsersService } from "./users.service.js";
 import type { UserSearchQuery } from "./users.schemas.js";
 
+export const register = asyncHandler(async (req: Request, res: Response) => {
+  return sendData(res, await UsersService.register(req.body), 201);
+});
+
 export const searchUsers = asyncHandler(async (req: Request, res: Response) => {
   const { q } = req.query as unknown as UserSearchQuery;
   const currentUserId = getUserId(req);

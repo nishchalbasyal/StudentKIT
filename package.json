@@ -15,9 +15,17 @@
     "dev:server": "npm --workspace server run dev",
     "dev:web": "npm --workspace @student-kit/mobile run web",
     "dev:mobile": "npm --workspace @student-kit/mobile run start",
+    "heroku-postbuild": "npm --workspace server run prisma:generate && npm --workspace server run build",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"
+  },
+  "overrides": {
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-native": "0.83.6",
+    "react-native-safe-area-context": "5.6.2",
+    "react-native-screens": "4.23.0"
   },
   "engines": {
     "node": ">=20.11.0"

@@ -1,5 +1,12 @@
-import type { ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import type { ReactElement, ReactNode } from "react";
+import {
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, fontSize, radius, spacing } from "../../constants/colors";
@@ -10,6 +17,7 @@ type Props = {
   action?: ReactNode;
   children: ReactNode;
   scroll?: boolean;
+  refreshControl?: ReactElement<typeof RefreshControl>;
   showBack?: boolean;
   onBack?: () => void;
 };
@@ -20,6 +28,7 @@ export function AppScreen({
   action,
   children,
   scroll = true,
+  refreshControl,
   showBack = false,
   onBack,
 }: Props) {
@@ -31,7 +40,10 @@ export function AppScreen({
             <Pressable
               accessibilityRole="button"
               onPress={onBack}
-              style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.backButton,
+                pressed && styles.pressed,
+              ]}
             >
               <Ionicons name="arrow-back" size={21} color={colors.text} />
             </Pressable>
@@ -50,7 +62,11 @@ export function AppScreen({
   return (
     <SafeAreaView edges={["top"]} style={styles.safe}>
       {scroll ? (
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          refreshControl={refreshControl}
+        >
           {content}
         </ScrollView>
       ) : (
@@ -63,17 +79,17 @@ export function AppScreen({
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: colors.background
+    backgroundColor: colors.background,
   },
   scroll: {
     flexGrow: 1,
-    paddingBottom: 88
+    paddingBottom: 88,
   },
   content: {
     flex: 1,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    gap: spacing.md
+    gap: spacing.md,
   },
   header: {
     minHeight: 44,
@@ -81,10 +97,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: spacing.md,
-    marginBottom: spacing.xs
+    marginBottom: spacing.xs,
   },
   headerText: {
-    flex: 1
+    flex: 1,
   },
   backButton: {
     width: 40,
@@ -94,20 +110,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border
+    borderColor: colors.border,
   },
   title: {
     color: colors.text,
     fontSize: fontSize.title,
-    fontWeight: "700"
+    fontWeight: "700",
   },
   subtitle: {
     marginTop: 3,
     color: colors.muted,
     fontSize: fontSize.body,
-    lineHeight: 20
+    lineHeight: 20,
   },
   pressed: {
-    opacity: 0.78
-  }
+    opacity: 0.78,
+  },
 });

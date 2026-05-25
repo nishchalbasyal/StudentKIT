@@ -23,11 +23,11 @@ type ModulePreferences = {
 
 const defaultModules: ModulePreferences = {
   work: true,
-  money: true,
-  splits: true,
-  tasks: true,
-  groceries: true,
-  cleaning: true,
+  money: false,
+  splits: false,
+  tasks: false,
+  groceries: false,
+  cleaning: false,
   coupons: false,
   events: false,
   ai: false,

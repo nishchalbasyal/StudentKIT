@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigation } from "@react-navigation/native";
@@ -12,6 +12,8 @@ import { colors, spacing } from "../../constants/colors";
 import { getApiErrorMessage } from "../../api/apiClient";
 import { useAuth } from "../../hooks/useAuth";
 import type { AuthStackParamList } from "../../navigation/types";
+import { getLocalSettings } from "../../storage/settingsStorage";
+import { useAuthStore } from "../../store/authStore";
 import { registerSchema, type RegisterFormValues } from "../../validators/auth.schema";
 
 type Navigation = NativeStackNavigationProp<AuthStackParamList, "Register">;
@@ -26,8 +28,9 @@ const studentStatusOptions = [
 export function RegisterScreen() {
   const navigation = useNavigation<Navigation>();
   const { register, isRegistering } = useAuth();
+  const localUser = useAuthStore((state) => state.user);
   const [serverError, setServerError] = useState<string | null>(null);
-  const { control, handleSubmit } = useForm<RegisterFormValues>({
+  const { control, handleSubmit, reset } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema) as never,
     defaultValues: {
       name: "",
@@ -38,6 +41,40 @@ export function RegisterScreen() {
       currency: "EUR"
     }
   });
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadDefaults() {
+      const localSettings = await getLocalSettings();
+      if (!active) return;
+
+      reset((currentValues) => ({
+        ...currentValues,
+        name: currentValues.name || localUser?.name || "",
+        email:
+          currentValues.email && currentValues.email !== "Guest mode"
+            ? currentValues.email
+            : localUser?.email && localUser.email !== "Guest mode"
+              ? localUser.email
+              : "",
+        country: localUser?.country || localSettings.work.workCountry || "DE",
+        studentStatus: localUser?.studentStatus || "INTERNATIONAL",
+        currency: localUser?.currency || localSettings.preferences.currency || "EUR",
+        hourlyWageDefault:
+          currentValues.hourlyWageDefault ??
+          localUser?.hourlyWageDefault ??
+          localSettings.work.defaultHourlyWage ??
+          undefined,
+      }));
+    }
+
+    void loadDefaults();
+
+    return () => {
+      active = false;
+    };
+  }, [localUser?.country, localUser?.currency, localUser?.email, localUser?.hourlyWageDefault, localUser?.name, localUser?.studentStatus, reset]);
 
   async function onSubmit(values: RegisterFormValues) {
     setServerError(null);

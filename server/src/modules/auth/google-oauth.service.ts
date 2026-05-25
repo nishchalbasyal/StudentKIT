@@ -1,6 +1,7 @@
 import { OAuth2Client } from "google-auth-library";
 import { env } from "../../config/env.js";
 import { prisma } from "../../database/prisma.js";
+import { toPublicUser } from "../users/user.presenter.js";
 import { HttpError } from "../../utils/httpError.js";
 import { issueTokenPair } from "./auth.service.js";
 
@@ -65,20 +66,7 @@ export async function authenticateWithGoogle(idToken: string) {
   const tokens = await issueTokenPair(user.id);
 
   return {
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      country: user.country,
-      studentStatus: user.studentStatus,
-      hourlyWageDefault: user.hourlyWageDefault,
-      currency: user.currency,
-      avatarUrl: user.avatarUrl,
-      university: user.university,
-      course: user.course,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt
-    },
+    user: toPublicUser(user),
     tokens
   };
 }

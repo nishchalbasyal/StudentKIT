@@ -3,6 +3,7 @@ export type StudentStatus = "INTERNATIONAL" | "EU_EEA_SWISS" | "GERMAN" | "OTHER
 export type User = {
   id: string;
   name: string;
+  username?: string | null;
   email: string;
   country: string;
   studentStatus: StudentStatus;

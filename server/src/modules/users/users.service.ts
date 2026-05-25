@@ -1,36 +1,9 @@
 import { prisma } from "../../database/prisma.js";
 import { HttpError } from "../../utils/httpError.js";
+import { registerUser } from "../auth/auth.service.js";
 import type { AvatarInput, UpdateUserMeInput } from "./users.schemas.js";
-
-function publicUser(user: {
-  id: string;
-  name: string;
-  email: string;
-  country: string;
-  studentStatus: string;
-  hourlyWageDefault: unknown;
-  currency: string;
-  avatarUrl?: string | null;
-  university?: string | null;
-  course?: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}) {
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    country: user.country,
-    studentStatus: user.studentStatus,
-    hourlyWageDefault: user.hourlyWageDefault,
-    currency: user.currency,
-    avatarUrl: user.avatarUrl ?? null,
-    university: user.university ?? null,
-    course: user.course ?? null,
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt,
-  };
-}
+import { toPublicUser } from "./user.presenter.js";
+import type { RegisterUserInput } from "./users.schemas.js";
 
 function hoursBetween(start: Date, end: Date, breakMinutes: number) {
   const diffMs = end.getTime() - start.getTime();
@@ -67,10 +40,14 @@ function calculateWorkStreak(dates: Date[]) {
 }
 
 export class UsersService {
+  static async register(input: RegisterUserInput) {
+    return registerUser(input);
+  }
+
   static async getMe(userId: string) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new HttpError(404, "NOT_FOUND", "User not found");
-    return publicUser(user);
+    return toPublicUser(user);
   }
 
   static async updateMe(userId: string, input: UpdateUserMeInput) {
@@ -79,6 +56,7 @@ export class UsersService {
       where: { id: userId },
       data: {
         ...profile,
+        email: profile.email?.toLowerCase(),
         country: profile.country?.toUpperCase(),
         currency: profile.currency?.toUpperCase(),
       },
@@ -108,7 +86,7 @@ export class UsersService {
       });
     }
 
-    return publicUser(user);
+    return toPublicUser(user);
   }
 
   static async getSummary(userId: string) {
@@ -155,7 +133,7 @@ export class UsersService {
       where: { id: userId },
       data: { avatarUrl: input.avatarUrl },
     });
-    return publicUser(user);
+    return toPublicUser(user);
   }
 
   static async searchUsers(query: string, excludeUserId: string) {

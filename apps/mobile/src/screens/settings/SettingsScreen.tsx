@@ -1,25 +1,13 @@
-import { useState, type ReactNode } from "react";
-import {
-  Alert,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
-} from "react-native";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { useEffect, useState } from "react";
+import { Alert, RefreshControl, StyleSheet, Text, View } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { useNavigation } from "@react-navigation/native";
+import { useQueryClient } from "@tanstack/react-query";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { ComingSoonAIToast } from "../../components/ui/ComingSoonAIToast";
-import { AppTopBar } from "../../components/ui/AppTopBar";
-import { ErrorState } from "../../components/ui/ErrorState";
-import { LoadingState } from "../../components/ui/LoadingState";
+import { AppButton } from "../../components/ui/AppButton";
+import { AppInput } from "../../components/ui/AppInput";
+import { AppScreen } from "../../components/ui/AppScreen";
+import { AppSelect } from "../../components/ui/AppSelect";
 import {
   colors,
   fontSize,
@@ -27,727 +15,610 @@ import {
   shadows,
   spacing,
 } from "../../constants/colors";
+import { API_BASE_URL } from "../../constants/config";
+import { findCountryConfig } from "../../config/countries";
 import { useAuth } from "../../hooks/useAuth";
 import { useSettings } from "../../hooks/useSettings";
-import { useWorkLimitSettings } from "../../hooks/useWorkLimitSettings";
 import { useUserProfile } from "../../hooks/useUserProfile";
+import { useWorkLimitSettings } from "../../hooks/useWorkLimitSettings";
 import type { RootStackParamList } from "../../navigation/types";
-import {
-  defaultModules,
-  getLocalSettings,
-  getOnboardingPreferences,
-} from "../../storage/settingsStorage";
-import { moduleOptions } from "../../services/modulePreferenceService";
-import { requestNotificationPermission } from "../../utils/notifications";
+import { exportAppCsv, importAppCsv } from "../../storage/csvTransfer";
+import { defaultSettings } from "../../storage/settingsStorage";
+import { syncQueue } from "../../storage/syncQueue";
+import { syncService } from "../../services/syncService";
+import type { WorkLimitPeriodUnit } from "../../types/work.types";
 import { describeWorkLimitSettings } from "../../utils/workLimit";
-import { defaultWorkLimitSettings } from "../../api/workLimit.api";
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>;
+type LimitMode = "UNLIMITED" | "HOURS" | "DAYS" | "CUSTOM";
+
+const limitModeOptions: Array<{ label: string; value: LimitMode }> = [
+  { label: "Unlimited", value: "UNLIMITED" },
+  { label: "Hours", value: "HOURS" },
+  { label: "Days", value: "DAYS" },
+  { label: "Custom", value: "CUSTOM" },
+];
+
+const periodOptions: Array<{ label: string; value: WorkLimitPeriodUnit }> = [
+  { label: "Week", value: "WEEK" },
+  { label: "Month", value: "MONTH" },
+  { label: "Year", value: "YEAR" },
+  { label: "Custom days", value: "CUSTOM_DAYS" },
+];
+
+function looksLikeEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+async function canReachApi() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/health`);
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
 
 export function SettingsScreen() {
   const navigation = useNavigation<Navigation>();
-  const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
   const { logout, isAuthenticated } = useAuth();
+  const settings = useSettings();
   const profile = useUserProfile();
-  const settingsHook = useSettings();
-  const settings = settingsHook.settings;
-  const workLimitHook = useWorkLimitSettings();
-  const workLimitSettings = workLimitHook.settings;
-  const isGuest = !isAuthenticated;
-  const [toastVisible, setToastVisible] = useState(false);
-  const [debugVisible, setDebugVisible] = useState(false);
-  const [debugContent, setDebugContent] = useState<string | null>(null);
+  const workLimit = useWorkLimitSettings();
+  const [pendingCount, setPendingCount] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [authAction, setAuthAction] = useState<"Login" | "Register" | null>(
+    null,
+  );
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [workCountry, setWorkCountry] = useState("DE");
+  const [defaultHourlyWage, setDefaultHourlyWage] = useState("");
+  const [limitMode, setLimitMode] = useState<LimitMode>("UNLIMITED");
+  const [limitValue, setLimitValue] = useState("");
+  const [customDays, setCustomDays] = useState("");
+  const [customHours, setCustomHours] = useState("");
+  const [periodUnit, setPeriodUnit] = useState<WorkLimitPeriodUnit>("WEEK");
+  const [transferText, setTransferText] = useState("");
 
-  if (settingsHook.isLoading || profile.isLoading || workLimitHook.isLoading) {
-    return <LoadingState label="Loading settings" />;
-  }
+  const appSettings = settings.settings ?? defaultSettings;
+  const workCountryConfig = findCountryConfig(workCountry);
 
-  if (
-    settingsHook.isError ||
-    profile.isError ||
-    workLimitHook.isError ||
-    !settings
-  ) {
-    return (
-      <ErrorState
-        message="Could not load settings."
-        onRetry={() => {
-          void settingsHook.refetch();
-          void profile.refetch();
-          void workLimitHook.refetch();
-        }}
-      />
+  useEffect(() => {
+    setName(profile.user?.name ?? "");
+    setEmail(
+      profile.user?.email === "Guest mode" ? "" : (profile.user?.email ?? ""),
     );
-  }
+  }, [profile.user?.email, profile.user?.name]);
 
-  const showToast = () => {
-    setToastVisible(true);
-    setTimeout(() => setToastVisible(false), 3000);
-  };
-
-  const deleteAccount = () => {
-    Alert.alert(
-      "Delete account",
-      "This permanently deletes your account and student data.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => void profile.deleteAccount(),
-        },
-      ],
+  useEffect(() => {
+    setWorkCountry(
+      appSettings.work.workCountry || profile.user?.country || "DE",
     );
-  };
+    setDefaultHourlyWage(
+      appSettings.work.defaultHourlyWage !== null &&
+        appSettings.work.defaultHourlyWage !== undefined
+        ? String(appSettings.work.defaultHourlyWage)
+        : profile.user?.hourlyWageDefault
+          ? String(profile.user.hourlyWageDefault)
+          : "",
+    );
+  }, [
+    appSettings.work.defaultHourlyWage,
+    appSettings.work.workCountry,
+    profile.user?.country,
+    profile.user?.hourlyWageDefault,
+  ]);
 
-  const showStorageDebug = async () => {
-    try {
-      const local = await getLocalSettings();
-      const onboard = await getOnboardingPreferences();
-      setDebugContent(JSON.stringify({ local, onboard }, null, 2));
-      setDebugVisible(true);
-    } catch (err) {
-      Alert.alert("Debug", "Could not read storage.");
+  useEffect(() => {
+    const current = workLimit.settings;
+    if (
+      !current ||
+      !current.isLimitEnabled ||
+      current.limitType === "UNLIMITED"
+    ) {
+      setLimitMode("UNLIMITED");
+      setLimitValue("");
+      setCustomDays("");
+      setCustomHours("");
+      setPeriodUnit("WEEK");
+      return;
     }
-  };
+
+    if (current.limitUnit === "DAYS" && current.periodUnit === "YEAR") {
+      setLimitMode("DAYS");
+      setLimitValue(current.limitValue ? String(current.limitValue) : "");
+      setCustomDays("");
+      setCustomHours("");
+    } else if (current.limitUnit === "HOURS") {
+      setLimitMode("HOURS");
+      setLimitValue(current.limitValue ? String(current.limitValue) : "");
+      setCustomDays("");
+      setCustomHours("");
+    } else {
+      setLimitMode("CUSTOM");
+      setCustomDays(
+        current.limitUnit === "DAYS" && current.limitValue
+          ? String(current.limitValue)
+          : "",
+      );
+      setCustomHours("");
+      setLimitValue("");
+    }
+
+    setPeriodUnit(current.periodUnit ?? "WEEK");
+  }, [workLimit.settings]);
+
+  useEffect(() => {
+    void syncQueue.pending().then((items) => setPendingCount(items.length));
+  }, [settings.settings, workLimit.settings, profile.user]);
+
+  async function saveProfile() {
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+
+    if (!trimmedName) {
+      Alert.alert("Account", "Name is required.");
+      return;
+    }
+
+    if (trimmedEmail && !looksLikeEmail(trimmedEmail)) {
+      Alert.alert("Account", "Enter a valid email address.");
+      return;
+    }
+
+    await profile.updateProfile({
+      name: trimmedName,
+      email: trimmedEmail || "Guest mode",
+    });
+    Alert.alert("Account", "Saved.");
+  }
+
+  async function saveWorkSettings() {
+    const parsedWage = defaultHourlyWage.trim()
+      ? Number(defaultHourlyWage)
+      : null;
+    const normalizedCountry = workCountry.trim().toUpperCase();
+
+    if (!normalizedCountry || normalizedCountry.length !== 2) {
+      Alert.alert("Work settings", "Use a 2-letter country code.");
+      return;
+    }
+
+    if (
+      parsedWage !== null &&
+      (!Number.isFinite(parsedWage) || parsedWage <= 0)
+    ) {
+      Alert.alert(
+        "Work settings",
+        "Default hourly wage must be greater than 0.",
+      );
+      return;
+    }
+
+    await settings.updateWork({
+      workCountry: normalizedCountry,
+      defaultHourlyWage: parsedWage,
+    });
+    Alert.alert("Work settings", "Saved.");
+  }
+
+  async function saveWorkLimit() {
+    if (limitMode === "UNLIMITED") {
+      await workLimit.saveWorkLimitSettings({
+        isLimitEnabled: false,
+        limitType: "UNLIMITED",
+        limitValue: null,
+        limitUnit: null,
+        periodValue: null,
+        periodUnit: null,
+      });
+      Alert.alert("Work limit", "Current limit: Unlimited");
+      return;
+    }
+
+    if (limitMode === "DAYS") {
+      const days = Number(limitValue);
+      if (!Number.isFinite(days) || days <= 0) {
+        Alert.alert("Work limit", "Enter a valid number of days.");
+        return;
+      }
+
+      await workLimit.saveWorkLimitSettings({
+        isLimitEnabled: true,
+        limitType: "CUSTOM",
+        limitValue: days,
+        limitUnit: "DAYS",
+        periodValue: 1,
+        periodUnit: "YEAR",
+      });
+      Alert.alert("Work limit", "Saved.");
+      return;
+    }
+
+    if (limitMode === "HOURS") {
+      const hours = Number(limitValue);
+      if (!Number.isFinite(hours) || hours <= 0) {
+        Alert.alert("Work limit", "Enter a valid number of hours.");
+        return;
+      }
+
+      await workLimit.saveWorkLimitSettings({
+        isLimitEnabled: true,
+        limitType: "CUSTOM",
+        limitValue: hours,
+        limitUnit: "HOURS",
+        periodValue: 1,
+        periodUnit,
+      });
+      Alert.alert("Work limit", "Saved.");
+      return;
+    }
+
+    const days = customDays.trim() ? Number(customDays) : 0;
+    const hours = customHours.trim() ? Number(customHours) : 0;
+    if (days <= 0 && hours <= 0) {
+      Alert.alert("Work limit", "Add at least custom days or custom hours.");
+      return;
+    }
+
+    await workLimit.saveWorkLimitSettings({
+      isLimitEnabled: true,
+      limitType: "CUSTOM",
+      limitValue: hours > 0 ? hours : days,
+      limitUnit: hours > 0 ? "HOURS" : "DAYS",
+      periodValue: hours > 0 ? 14 : 1,
+      periodUnit: hours > 0 ? "CUSTOM_DAYS" : "YEAR",
+    });
+    Alert.alert("Work limit", "Saved.");
+  }
+
+  async function syncNow() {
+    const result = await syncService.syncLocalDataAfterLogin();
+    await queryClient.invalidateQueries();
+    setPendingCount(result.failed > 0 ? pendingCount : 0);
+    Alert.alert(
+      "Sync",
+      result.failed > 0 ? "Some items still need sync." : "Synced.",
+    );
+  }
+
+  async function openAuthFlow(screen: "Login" | "Register") {
+    setAuthAction(screen);
+
+    try {
+      const online = await canReachApi();
+
+      if (!online) {
+        Alert.alert(
+          "No internet connection",
+          "You have to connect to internet to log in or register.",
+        );
+        return;
+      }
+
+      navigation.navigate("Auth", { screen });
+    } finally {
+      setAuthAction(null);
+    }
+  }
+
+  async function refreshScreen() {
+    setRefreshing(true);
+
+    try {
+      if (isAuthenticated) {
+        await syncQueue.processWithBackend();
+      }
+
+      await Promise.all([
+        settings.refetch(),
+        profile.refetch(),
+        workLimit.refetch(),
+      ]);
+
+      const items = await syncQueue.pending();
+      setPendingCount(items.length);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  async function exportData() {
+    const csv = await exportAppCsv();
+    await Clipboard.setStringAsync(csv);
+    setTransferText(csv);
+    Alert.alert("Export", "CSV copied to clipboard.");
+  }
+
+  async function pasteImport() {
+    setTransferText(await Clipboard.getStringAsync());
+  }
+
+  async function importData() {
+    if (!transferText.trim()) {
+      Alert.alert("Import", "Paste a CSV export first.");
+      return;
+    }
+
+    try {
+      await importAppCsv(transferText);
+    } catch (error) {
+      Alert.alert(
+        "Import",
+        error instanceof Error ? error.message : "Invalid CSV data.",
+      );
+      return;
+    }
+
+    await queryClient.invalidateQueries();
+    Alert.alert("Import", "CSV imported.");
+  }
+
+  const canGoBack = navigation.canGoBack();
 
   return (
-    <SafeAreaView edges={["top"]} style={styles.safe}>
-      <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: Math.max(insets.bottom, 0) + 132 },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        <AppTopBar title="Settings" avatarText={profile.user?.name ?? "ST"} />
-
-        <Section title="Account" defaultExpanded collapsible={false}>
-          <ActionRow
-            icon="person-outline"
-            label="Personal Information"
-            detail="Profile"
-            onPress={() => navigation.navigate("Profile")}
-          />
-          <ActionRow
-            icon="lock-closed-outline"
-            label="Login & Security"
-            detail="Password login active"
-            onPress={() =>
-              Alert.alert(
-                "Login & Security",
-                "Email and password login is active. Token refresh is handled securely by the app.",
-              )
-            }
-          />
-          <ActionRow
-            icon="link-outline"
-            label="Linked Accounts"
-            detail="None connected"
-            onPress={() =>
-              Alert.alert(
-                "Linked accounts",
-                "No linked accounts yet. Email login is connected.",
-              )
-            }
-            last
-          />
-        </Section>
-
-        <Section title="Notifications" defaultExpanded={false} collapsible>
-          <ToggleRow
-            label="Push Notifications"
-            icon="notifications-outline"
-            value={settings.notifications.pushNotifications}
-            onValueChange={async (value) => {
-              if (value) {
-                const granted = await requestNotificationPermission();
-                if (!granted) {
-                  Alert.alert(
-                    "Notifications",
-                    "StudentKit will keep reminders in-app until push permission is granted.",
-                  );
-                }
-              }
-              await settingsHook.updateNotifications({
-                pushNotifications: value,
-              });
-              showToast();
-            }}
-          />
-          <ToggleRow
-            label="Email Updates"
-            icon="mail-outline"
-            value={settings.notifications.emailUpdates}
-            onValueChange={(value) =>
-              void settingsHook
-                .updateNotifications({ emailUpdates: value })
-                .then(showToast)
-            }
-          />
-          <Text style={styles.subsection}>Reminder Categories</Text>
-          <ToggleRow
-            label="Classes"
-            icon="school-outline"
-            value={settings.notifications.reminderCategories.classes}
-            onValueChange={(value) =>
-              void settingsHook
-                .updateNotifications({
-                  reminderCategories: { classes: value },
-                })
-                .then(showToast)
-            }
-          />
-          <ToggleRow
-            label="Tasks"
-            icon="checkmark-circle-outline"
-            value={settings.notifications.reminderCategories.tasks}
-            onValueChange={(value) =>
-              void settingsHook
-                .updateNotifications({
-                  reminderCategories: { tasks: value },
-                })
-                .then(showToast)
-            }
-          />
-          <ToggleRow
-            label="Work"
-            icon="briefcase-outline"
-            value={settings.notifications.reminderCategories.work}
-            onValueChange={(value) =>
-              void settingsHook
-                .updateNotifications({
-                  reminderCategories: { work: value },
-                })
-                .then(showToast)
-            }
-          />
-          <ToggleRow
-            label="Groceries"
-            icon="basket-outline"
-            value={settings.notifications.reminderCategories.groceries}
-            onValueChange={(value) =>
-              void settingsHook
-                .updateNotifications({
-                  reminderCategories: { groceries: value },
-                })
-                .then(showToast)
-            }
-          />
-          <ToggleRow
-            label="Cleaning"
-            icon="sparkles-outline"
-            value={settings.notifications.reminderCategories.cleaning}
-            onValueChange={(value) =>
-              void settingsHook
-                .updateNotifications({
-                  reminderCategories: { cleaning: value },
-                })
-                .then(showToast)
-            }
-          />
-          <ToggleRow
-            label="Split settlements"
-            icon="swap-horizontal-outline"
-            value={settings.notifications.reminderCategories.splitSettlements}
-            onValueChange={(value) =>
-              void settingsHook
-                .updateNotifications({
-                  reminderCategories: { splitSettlements: value },
-                })
-                .then(showToast)
-            }
-            last
-          />
-        </Section>
-
-        <Section title="App Preferences" defaultExpanded={false} collapsible>
-          <ChoiceRow
-            label="Theme"
-            value={settings.preferences.theme}
-            options={["SYSTEM", "LIGHT", "DARK"]}
-            onSelect={(theme) =>
-              void settingsHook.updatePreferences({ theme }).then(showToast)
-            }
-          />
-          <ChoiceRow
-            label="Language"
-            value={settings.preferences.language}
-            options={["en", "de"]}
-            onSelect={(language) =>
-              void settingsHook.updatePreferences({ language }).then(showToast)
-            }
-          />
-          <ChoiceRow
-            label="Currency"
-            value={settings.preferences.currency}
-            options={["EUR", "USD", "GBP", "NPR"]}
-            onSelect={(currency) =>
-              void settingsHook.updatePreferences({ currency }).then(showToast)
-            }
-          />
-          <ChoiceRow
-            label="Time format"
-            value={settings.preferences.timeFormat}
-            options={["24H", "12H"]}
-            onSelect={(timeFormat) =>
-              void settingsHook
-                .updatePreferences({ timeFormat })
-                .then(showToast)
-            }
-            last
-          />
-        </Section>
-
-        <Section title="AI Settings" defaultExpanded={false} collapsible>
-          <ToggleRow
-            label="Enable AI suggestions"
-            icon="sparkles-outline"
-            value={false}
-            disabled
-            onValueChange={() => showToast()}
-          />
-          <InfoRow label="AI provider status" value="Coming soon" />
-          <ToggleRow
-            label="Allow AI form suggestions"
-            icon="create-outline"
-            value={settings.ai.aiFormSuggestionsAllowed}
-            onValueChange={(value) =>
-              void settingsHook
-                .updateAI({ aiFormSuggestionsAllowed: value })
-                .then(showToast)
-            }
-          />
-          <ActionRow
-            icon="refresh-outline"
-            label="Clear AI suggestions cache"
-            detail={
-              settings.ai.aiSuggestionsCacheClearedAt ? "Cleared" : "Ready"
-            }
-            onPress={() =>
-              void settingsHook.updateAI({ clearCache: true }).then(showToast)
-            }
-            last
-          />
-        </Section>
-
-        <Section title="Work Limit" defaultExpanded collapsible={false}>
-          <View style={styles.workCardContent}>
-            <ActionRow
-              icon="briefcase-outline"
-              label="Open work limit settings"
-              detail={describeWorkLimitSettings(
-                workLimitSettings ?? defaultWorkLimitSettings,
-              )}
-              onPress={() => navigation.navigate("WorkLimitSettings")}
-            />
-            <InfoRow
-              label="Banner"
-              value={
-                workLimitSettings?.hasDismissedUnlimitedLimitBanner
-                  ? "Dismissed"
-                  : "Ready to show"
-              }
-              last
-            />
-          </View>
-        </Section>
-
-        <Section title="Modules" defaultExpanded collapsible={false}>
-          {moduleOptions.map((m) => (
-            <ToggleRow
-              key={m.key}
-              icon={m.icon as keyof typeof Ionicons.glyphMap}
-              label={m.title}
-              value={(settings.userEnabledModules ?? defaultModules)[m.key]}
-              onValueChange={(value) =>
-                void settingsHook
-                  .updateModules({ [m.key]: value } as any)
-                  .then(showToast)
-              }
-            />
-          ))}
-        </Section>
-
-        <Section title="Danger Zone" defaultExpanded={false} collapsible>
-          <InfoRow label="Mode" value={isGuest ? "Guest mode" : "Logged in"} />
-          <InfoRow
-            label="Selected modules"
-            value={summarizeModules(
-              settings.userEnabledModules ?? defaultModules,
-            )}
-          />
-          <ActionRow
-            icon="log-out-outline"
-            label={isGuest ? "Create Account / Login" : "Logout"}
-            detail={profile.user?.name ?? "Account"}
-            onPress={() =>
-              isGuest
-                ? navigation.navigate("Auth", { screen: "Login" })
-                : void logout()
-            }
-          />
-          <ActionRow
-            icon="bug-outline"
-            label="Show Storage Debug"
-            detail="View persisted settings & onboarding"
-            onPress={() => void showStorageDebug()}
-          />
-          {!isGuest ? (
-            <ActionRow
-              icon="trash-outline"
-              label="Delete Account"
-              detail="Permanent"
-              danger
-              onPress={deleteAccount}
-              last
-            />
-          ) : null}
-        </Section>
-      </ScrollView>
-      <ComingSoonAIToast visible={toastVisible} message="Settings saved." />
-      <Modal visible={debugVisible} animationType="slide">
-        <SafeAreaView style={styles.safe}>
-          <View style={[styles.card, { flex: 1 }]}>
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: spacing.md,
-              }}
-            >
-              <Text style={{ fontWeight: "800", fontSize: fontSize.section }}>
-                Storage Debug
-              </Text>
-              <Pressable
-                onPress={() => setDebugVisible(false)}
-                style={({ pressed }) => [
-                  styles.quickButton,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Ionicons
-                  name="close-outline"
-                  size={18}
-                  color={colors.primary}
-                />
-              </Pressable>
-            </View>
-            <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
-              <Text
-                style={{
-                  fontFamily: undefined,
-                  color: colors.text,
-                  fontSize: fontSize.caption,
-                  lineHeight: 18,
-                }}
-              >
-                {debugContent}
-              </Text>
-            </ScrollView>
-          </View>
-        </SafeAreaView>
-      </Modal>
-    </SafeAreaView>
-  );
-}
-
-function ToggleRow({
-  icon,
-  label,
-  value,
-  onValueChange,
-  disabled,
-  last,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  value: boolean;
-  onValueChange: (value: boolean) => void;
-  disabled?: boolean;
-  last?: boolean;
-}) {
-  return (
-    <View style={[styles.row, last && styles.last]}>
-      <Ionicons name={icon} size={21} color={colors.primary} />
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Switch
-        value={value}
-        onValueChange={onValueChange}
-        disabled={disabled}
-        trackColor={{ false: colors.border, true: colors.primary }}
-        thumbColor="#FFFFFF"
-      />
-    </View>
-  );
-}
-
-function ActionRow({
-  icon,
-  label,
-  detail,
-  onPress,
-  danger,
-  last,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  detail?: string;
-  onPress: () => void;
-  danger?: boolean;
-  last?: boolean;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.row,
-        last && styles.last,
-        pressed && styles.pressed,
-      ]}
+    <AppScreen
+      title="Settings"
+      subtitle="Compact setup for work tracking."
+      showBack={canGoBack}
+      onBack={canGoBack ? () => navigation.goBack() : undefined}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void refreshScreen()}
+        />
+      }
     >
-      <Ionicons
-        name={icon}
-        size={21}
-        color={danger ? colors.danger : colors.primary}
-      />
-      <View style={styles.rowBody}>
-        <Text style={[styles.rowLabel, danger && styles.dangerText]}>
-          {label}
-        </Text>
-        {detail ? <Text style={styles.detail}>{detail}</Text> : null}
-      </View>
-      <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-    </Pressable>
-  );
-}
-
-function InfoRow({
-  label,
-  value,
-  last,
-}: {
-  label: string;
-  value: string;
-  last?: boolean;
-}) {
-  return (
-    <View style={[styles.row, last && styles.last]}>
-      <Ionicons name="server-outline" size={21} color={colors.primary} />
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.detailStrong}>{value}</Text>
-    </View>
-  );
-}
-
-function summarizeModules(modules: Record<string, boolean>) {
-  const enabled = Object.entries(modules)
-    .filter(([, value]) => value)
-    .map(([key]) => key);
-
-  if (enabled.length === 0) return "None";
-  if (enabled.length <= 3) return enabled.join(", ");
-  return `${enabled.slice(0, 3).join(", ")} +${enabled.length - 3} more`;
-}
-
-function Section({
-  title,
-  children,
-  defaultExpanded = true,
-  collapsible = false,
-}: {
-  title: string;
-  children: ReactNode;
-  defaultExpanded?: boolean;
-  collapsible?: boolean;
-}) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
-  const isExpanded = !collapsible || expanded;
-
-  return (
-    <View style={styles.section}>
-      <Pressable
-        accessibilityRole={collapsible ? "button" : undefined}
-        onPress={collapsible ? () => setExpanded((value) => !value) : undefined}
-        style={({ pressed }) => [
-          styles.sectionHeader,
-          collapsible && styles.sectionHeaderInteractive,
-          pressed && collapsible && styles.pressed,
-        ]}
-      >
-        <Text style={styles.sectionTitle}>{title}</Text>
-        {collapsible ? (
-          <Ionicons
-            name={expanded ? "chevron-up-outline" : "chevron-down-outline"}
-            size={18}
-            color={colors.muted}
-          />
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Work settings</Text>
+        <AppInput
+          label="Work country code"
+          value={workCountry}
+          onChangeText={setWorkCountry}
+          autoCapitalize="characters"
+          maxLength={2}
+        />
+        {workCountryConfig?.code === "DE" ? (
+          <Text style={styles.helper}>
+            Germany suggested student limit: 140 days/year
+          </Text>
+        ) : workCountryConfig ? (
+          <Text style={styles.helper}>{workCountryConfig.name}</Text>
         ) : null}
-      </Pressable>
-      {isExpanded ? <View style={styles.card}>{children}</View> : null}
-    </View>
-  );
-}
-
-function ChoiceRow<T extends string>({
-  label,
-  value,
-  options,
-  onSelect,
-  last,
-  labels,
-}: {
-  label: string;
-  value: T;
-  options: T[];
-  onSelect: (value: T) => void;
-  last?: boolean;
-  labels?: Partial<Record<T, string>>;
-}) {
-  return (
-    <View style={[styles.choiceRow, last && styles.last]}>
-      <Text style={styles.choiceLabel}>{label}</Text>
-      <View style={styles.choices}>
-        {options.map((option) => {
-          const active = option === value;
-          return (
-            <Pressable
-              key={option}
-              onPress={() => onSelect(option)}
-              style={[styles.choice, active && styles.choiceActive]}
-            >
-              <Text
-                style={[styles.choiceText, active && styles.choiceTextActive]}
-              >
-                {labels?.[option] ?? option}
-              </Text>
-            </Pressable>
-          );
-        })}
+        <AppInput
+          label="Default hourly wage"
+          value={defaultHourlyWage}
+          onChangeText={setDefaultHourlyWage}
+          keyboardType="decimal-pad"
+        />
+        <AppButton
+          title="Save work settings"
+          icon="save-outline"
+          loading={settings.isSaving}
+          disabled={settings.isSaving}
+          onPress={() => void saveWorkSettings()}
+        />
       </View>
-    </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Work limit</Text>
+        <AppSelect
+          label="Limit type"
+          value={limitMode}
+          options={limitModeOptions}
+          onChange={setLimitMode}
+        />
+        {limitMode === "HOURS" ? (
+          <>
+            <AppInput
+              label="Hours amount"
+              value={limitValue}
+              onChangeText={setLimitValue}
+              keyboardType="decimal-pad"
+            />
+            <AppSelect
+              label="Period"
+              value={periodUnit}
+              options={periodOptions.filter(
+                (option) => option.value !== "CUSTOM_DAYS",
+              )}
+              onChange={setPeriodUnit}
+            />
+            <Text style={styles.helper}>
+              20 hours/week = approx. 80 hours/month
+            </Text>
+          </>
+        ) : null}
+        {limitMode === "DAYS" ? (
+          <>
+            <AppInput
+              label="Days amount"
+              value={limitValue}
+              onChangeText={setLimitValue}
+              keyboardType="number-pad"
+            />
+            <Text style={styles.helper}>140 days/year</Text>
+          </>
+        ) : null}
+        {limitMode === "CUSTOM" ? (
+          <>
+            <AppInput
+              label="Number of days"
+              value={customDays}
+              onChangeText={setCustomDays}
+              keyboardType="number-pad"
+            />
+            <AppInput
+              label="Number of hours"
+              value={customHours}
+              onChangeText={setCustomHours}
+              keyboardType="decimal-pad"
+            />
+            <Text style={styles.helper}>Example: 14 days or 48 hours</Text>
+          </>
+        ) : null}
+        <Text style={styles.currentText}>
+          Current limit:{" "}
+          {limitMode === "UNLIMITED"
+            ? "Unlimited"
+            : workLimit.settings
+              ? describeWorkLimitSettings(workLimit.settings)
+              : "Unlimited"}
+        </Text>
+        <AppButton
+          title="Save work limit"
+          icon="briefcase-outline"
+          loading={workLimit.isSaving}
+          disabled={workLimit.isSaving}
+          onPress={() => void saveWorkLimit()}
+        />
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Data & sync</Text>
+        <Text style={styles.helper}>
+          {isAuthenticated
+            ? pendingCount > 0
+              ? `Sync pending: ${pendingCount}`
+              : "Synced"
+            : "Guest mode"}
+        </Text>
+        <AppButton
+          title="Sync now"
+          icon="sync-outline"
+          variant="secondary"
+          onPress={() => void syncNow()}
+          disabled={!isAuthenticated}
+        />
+        <Text style={styles.aiNote}>AI features coming later.</Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Account</Text>
+        <AppButton
+          title="Open Profile"
+          icon="person-outline"
+          variant="secondary"
+          onPress={() => navigation.navigate("Profile")}
+        />
+        <AppInput label="Name" value={name} onChangeText={setName} />
+        <AppInput
+          label="Email"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+        />
+        <AppButton
+          title="Save account"
+          icon="save-outline"
+          loading={profile.isSaving}
+          disabled={profile.isSaving}
+          onPress={() => void saveProfile()}
+        />
+        {isAuthenticated ? (
+          <AppButton
+            title="Logout"
+            icon="log-out-outline"
+            variant="danger"
+            onPress={() => void logout()}
+          />
+        ) : (
+          <View style={styles.buttonStack}>
+            <AppButton
+              title="Login"
+              icon="log-in-outline"
+              variant="secondary"
+              loading={authAction === "Login"}
+              disabled={authAction !== null}
+              onPress={() => void openAuthFlow("Login")}
+            />
+            <AppButton
+              title="Register"
+              icon="person-add-outline"
+              variant="secondary"
+              loading={authAction === "Register"}
+              disabled={authAction !== null}
+              onPress={() => void openAuthFlow("Register")}
+            />
+          </View>
+        )}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Import / Export</Text>
+        <Text style={styles.helper}>
+          CSV includes work entries, work settings, and work limit settings.
+        </Text>
+        <View style={styles.buttonStack}>
+          <AppButton
+            title="Export CSV"
+            icon="download-outline"
+            onPress={() => void exportData()}
+          />
+          <AppButton
+            title="Paste CSV"
+            icon="clipboard-outline"
+            variant="secondary"
+            onPress={() => void pasteImport()}
+          />
+        </View>
+        <AppInput
+          label="CSV data"
+          value={transferText}
+          onChangeText={setTransferText}
+          multiline
+          style={styles.textArea}
+        />
+        <AppButton
+          title="Import CSV"
+          icon="cloud-upload-outline"
+          variant="secondary"
+          onPress={() => void importData()}
+        />
+      </View>
+    </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.lg, gap: spacing.md },
-  section: { gap: spacing.sm },
-  sectionHeader: {
-    minHeight: 28,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  sectionHeaderInteractive: {
-    paddingVertical: spacing.xs,
-  },
-  sectionTitle: {
-    color: colors.text,
-    fontSize: fontSize.section,
-    fontWeight: "800",
-  },
   card: {
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-    overflow: "hidden",
-    paddingHorizontal: spacing.lg,
+    padding: spacing.md,
+    gap: spacing.sm,
     ...shadows.soft,
   },
-  quickButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.softGreen,
-  },
-  workCardContent: {
-    gap: spacing.md,
-    paddingVertical: spacing.lg,
-  },
-  row: {
-    minHeight: 68,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingVertical: spacing.sm,
-  },
-  rowBody: { flex: 1, gap: spacing.xs },
-  rowLabel: {
+  sectionTitle: {
     color: colors.text,
-    fontSize: fontSize.bodyLarge,
-    fontWeight: "700",
-  },
-  detail: {
-    color: colors.muted,
-    fontSize: fontSize.caption,
-    fontWeight: "500",
-    lineHeight: 16,
-  },
-  detailStrong: {
-    color: colors.primary,
     fontSize: fontSize.body,
     fontWeight: "800",
-    flexShrink: 1,
-    textAlign: "right",
-    textTransform: "capitalize",
   },
-  last: { borderBottomWidth: 0 },
-  subsection: {
+  helper: {
     color: colors.muted,
     fontSize: fontSize.caption,
-    fontWeight: "900",
-    letterSpacing: 0,
-    marginTop: spacing.sm,
-    marginBottom: -spacing.xs,
+    lineHeight: 16,
   },
-  choiceRow: {
-    minHeight: 74,
-    justifyContent: "center",
-    gap: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingVertical: spacing.sm,
-  },
-  choiceLabel: {
+  currentText: {
     color: colors.text,
-    fontSize: fontSize.bodyLarge,
-    fontWeight: "800",
-  },
-  choices: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  choice: {
-    minHeight: 36,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-  },
-  choiceActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  choiceText: {
-    color: colors.text,
-    fontSize: fontSize.caption,
-    fontWeight: "800",
-  },
-  choiceTextActive: { color: "#FFFFFF" },
-  helpText: {
-    color: colors.muted,
     fontSize: fontSize.caption,
     fontWeight: "700",
-    paddingBottom: spacing.md,
   },
-  dangerText: { color: colors.danger },
-  pressed: { opacity: 0.78 },
+  aiNote: {
+    color: colors.muted,
+    fontSize: fontSize.caption,
+    fontStyle: "italic",
+  },
+  buttonStack: {
+    gap: spacing.xs,
+  },
+  textArea: {
+    minHeight: 120,
+    paddingTop: 10,
+    textAlignVertical: "top",
+  },
 });

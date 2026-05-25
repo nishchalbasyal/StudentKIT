@@ -25,11 +25,11 @@ const onboardingKey = "student-kit.onboarding";
 
 export const defaultModules: UserEnabledModules = {
   work: true,
-  money: true,
-  splits: true,
-  tasks: true,
-  groceries: true,
-  cleaning: true,
+  money: false,
+  splits: false,
+  tasks: false,
+  groceries: false,
+  cleaning: false,
   coupons: false,
   events: false,
   ai: false,
@@ -75,7 +75,7 @@ export const defaultSettings: AppSettings = {
 };
 
 export const defaultOnboardingPreferences: OnboardingPreferences = {
-  completed: false,
+  completed: true,
   useWithoutLogin: true,
   userEnabledModules: defaultModules,
   updatedAt: new Date(0).toISOString(),
@@ -101,7 +101,6 @@ function mergeSettings(value?: Partial<AppSettings> | null): AppSettings {
       ...defaultSettings.ai,
       ...value?.ai,
       aiProviderStatus: "Coming soon",
-      aiSuggestionsEnabled: false,
     },
     work: {
       ...defaultSettings.work,

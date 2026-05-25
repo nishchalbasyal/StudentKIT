@@ -17,29 +17,20 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useRoute, type RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { DashboardScreen } from "../screens/dashboard/DashboardScreen";
 import { WorkHoursScreen } from "../screens/work/WorkHoursScreen";
-import { MoneyScreen } from "../screens/money/MoneyScreen";
-import { TasksScreen } from "../screens/tasks/TasksScreen";
+import { CalendarScreen } from "../screens/calendar/CalendarScreen";
+import { SettingsScreen } from "../screens/settings/SettingsScreen";
 import { ProfileScreen } from "../screens/profile/ProfileScreen";
-import { colors, fontSize, radius, spacing } from "../constants/colors";
-import { modulePreferenceService } from "../services/modulePreferenceService";
-import { useSettings } from "../hooks/useSettings";
-import type { UserEnabledModules } from "../storage/settingsStorage";
+import { colors, fontSize } from "../constants/colors";
 import type { MainTabParamList, RootStackParamList } from "./types";
 
 type MainRoute = RouteProp<RootStackParamList, "Main">;
 
 type MainPage = {
-  key: keyof Pick<
-    MainTabParamList,
-    "Dashboard" | "Tasks" | "Money" | "Work" | "Profile"
-  >;
+  key: keyof Pick<MainTabParamList, "Work" | "Calendar" | "Settings" | "Profile">;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
   render: () => ReactNode;
@@ -51,67 +42,35 @@ export function MainTabs() {
   const { width } = useWindowDimensions();
   const listRef = useRef<FlatList<MainPage>>(null);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [modules, setModules] = useState<UserEnabledModules | null>(null);
-  const navigation =
-    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const settingsHook = useSettings();
-
-  useEffect(() => {
-    // initial load from onboarding preferences
-    void modulePreferenceService.get().then(setModules);
-  }, []);
-
-  useEffect(() => {
-    // react to settings changes from settings screen (userEnabledModules)
-    if (settingsHook.settings?.userEnabledModules) {
-      setModules(
-        settingsHook.settings.userEnabledModules as UserEnabledModules,
-      );
-    }
-  }, [settingsHook.settings]);
 
   const pages = useMemo<MainPage[]>(() => {
-    const next: MainPage[] = [
+    return [
       {
-        key: "Dashboard",
-        label: "Home",
-        icon: "home-outline",
-        render: () => <DashboardScreen />,
+        key: "Work",
+        label: "Work",
+        icon: "briefcase-outline",
+        render: () => <WorkHoursScreen />,
+      },
+      {
+        key: "Calendar",
+        label: "Calendar",
+        icon: "calendar-outline",
+        render: () => <CalendarScreen />,
+      },
+      {
+        key: "Settings",
+        label: "Settings",
+        icon: "settings-outline",
+        render: () => <SettingsScreen />,
+      },
+      {
+        key: "Profile",
+        label: "Profile",
+        icon: "person-outline",
+        render: () => <ProfileScreen />,
       },
     ];
-
-
-
-    next.push({
-      key: "Money",
-      label: "Expense",
-      icon: "cash-outline",
-      render: () => <MoneyScreen />,
-    });
-
-    next.push({
-      key: "Work",
-      label: "Work",
-      icon: "briefcase-outline",
-      render: () => <WorkHoursScreen />,
-    });
-    
-     next.push({
-          key: "Tasks",
-          label: "Tasks",
-          icon: "checkmark-circle-outline",
-          render: () => <TasksScreen />,
-        });
-
-    next.push({
-      key: "Profile",
-      label: "Profile",
-      icon: "person-circle-outline",
-      render: () => <ProfileScreen />,
-    });
-
-    return next;
-  }, [modules]);
+  }, []);
 
   const goToIndex = useCallback(
     (index: number, animated = true) => {
@@ -127,11 +86,13 @@ export function MainTabs() {
     if (!requestedScreen) return;
 
     const normalizedScreen =
-      requestedScreen === "Expenses" || requestedScreen === "Splits"
-        ? "Money"
-        : requestedScreen === "More"
-          ? "Profile"
-          : requestedScreen;
+      requestedScreen === "Calendar"
+        ? "Calendar"
+        : requestedScreen === "Settings"
+          ? "Settings"
+          : requestedScreen === "Profile"
+            ? "Profile"
+            : "Work";
     const nextIndex = pages.findIndex((page) => page.key === normalizedScreen);
     if (nextIndex >= 0) {
       requestAnimationFrame(() => goToIndex(nextIndex, false));
@@ -150,45 +111,9 @@ export function MainTabs() {
   );
 
   const bottomGap = Math.max(insets.bottom, 10);
-  const quickBottom = bottomGap + 74;
 
   return (
     <View style={styles.shell}>
-      {activeIndex !== 0 ? (
-        <View
-          style={[styles.quickActions, { bottom: quickBottom }]}
-          pointerEvents="box-none"
-        >
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => goToIndex(0)}
-            style={({ pressed }) => [
-              styles.quickButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Ionicons name="home-outline" size={18} color={colors.primary} />
-            <Text style={styles.quickText}>Home</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() =>
-              navigation.canGoBack() ? navigation.goBack() : goToIndex(0)
-            }
-            style={({ pressed }) => [
-              styles.quickButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Ionicons
-              name="arrow-back-outline"
-              size={18}
-              color={colors.primary}
-            />
-            <Text style={styles.quickText}>Back</Text>
-          </Pressable>
-        </View>
-      ) : null}
       <FlatList
         ref={listRef}
         data={pages}
@@ -256,10 +181,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   footer: {
-    minHeight: 64,
+    minHeight: 58,
     paddingHorizontal: 8,
-    paddingTop: 4,
-    paddingBottom: 10,
+    paddingTop: 2,
+    paddingBottom: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -267,35 +192,9 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
-  quickActions: {
-    position: "absolute",
-    left: spacing.lg,
-    right: spacing.lg,
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: spacing.sm,
-    zIndex: 20,
-    backgroundColor: "transparent",
-  },
-  quickButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  quickText: {
-    color: colors.primary,
-    fontWeight: "700",
-    fontSize: fontSize.caption,
-  },
   footerItem: {
     flex: 1,
-    height: 48,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
     gap: 1,

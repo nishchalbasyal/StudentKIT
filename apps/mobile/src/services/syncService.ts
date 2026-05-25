@@ -6,36 +6,8 @@ import { useAuthStore } from "../store/authStore";
 
 export const syncService = {
   async hasLocalData() {
-    const [
-      tasks,
-      reminders,
-      workEntries,
-      expenses,
-      groceries,
-      cleaningRoutines,
-      splitGroups,
-      splitSettlements,
-    ] = await Promise.all([
-      localDb.list("tasks"),
-      localDb.list("reminders"),
-      localDb.list("workEntries"),
-      localDb.list("expenses"),
-      localDb.list("groceries"),
-      localDb.list("cleaningRoutines"),
-      localDb.list("splitGroups"),
-      localDb.list("splitSettlements"),
-    ]);
-
-    return [
-      tasks,
-      reminders,
-      workEntries,
-      expenses,
-      groceries,
-      cleaningRoutines,
-      splitGroups,
-      splitSettlements,
-    ].some((items) => items.length > 0);
+    const [workEntries] = await Promise.all([localDb.list("workEntries")]);
+    return workEntries.length > 0;
   },
 
   async syncSettings() {
@@ -68,30 +40,14 @@ export const syncService = {
     }
 
     await this.syncSettings();
-    const collections = [
-      ["task", "tasks"],
-      ["reminder", "reminders"],
-      ["workEntry", "workEntries"],
-      ["expense", "expenses"],
-      ["budget", "budgets"],
-      ["grocery", "groceries"],
-      ["cleaning", "cleaningRoutines"],
-      ["splitGroup", "splitGroups"],
-      ["splitMember", "splitMembers"],
-      ["splitExpense", "splitExpenses"],
-      ["splitSettlement", "splitSettlements"],
-    ] as const;
-
-    for (const [entityType, collection] of collections) {
-      const items = await localDb.list(collection);
-      for (const item of items) {
-        await syncQueue.enqueue({
-          entityType,
-          entityId: item.id,
-          operation: "CREATE",
-          payload: item,
-        });
-      }
+    const workEntries = await localDb.list("workEntries");
+    for (const item of workEntries) {
+      await syncQueue.enqueue({
+        entityType: "workEntry",
+        entityId: item.id,
+        operation: item.syncedAt ? "UPDATE" : "CREATE",
+        payload: item,
+      });
     }
 
     return syncQueue.processWithBackend();

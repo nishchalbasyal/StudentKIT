@@ -64,7 +64,7 @@ apiClient.interceptors.response.use(
     const requestUrl = originalRequest?.url ?? "";
     const canRefresh =
       !requestUrl.includes("/auth/login") &&
-      !requestUrl.includes("/auth/register") &&
+      !requestUrl.includes("/users/register") &&
       !requestUrl.includes("/auth/refresh");
 
     if (error.response?.status === 401 && originalRequest?._retry) {

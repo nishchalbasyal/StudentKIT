@@ -10,6 +10,7 @@ import { SummaryCard } from "../../components/dashboard/SummaryCard";
 import { WorkLimitCard } from "../../components/dashboard/WorkLimitCard";
 import { spacing } from "../../constants/colors";
 import { useWorkHours } from "../../hooks/useWorkHours";
+import { useWorkLimitSettings } from "../../hooks/useWorkLimitSettings";
 import { useAuthStore } from "../../store/authStore";
 import { getApiErrorMessage } from "../../api/apiClient";
 import { formatCurrency } from "../../utils/formatCurrency";
@@ -21,8 +22,9 @@ export function WorkSummaryScreen() {
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const user = useAuthStore((state) => state.user);
   const { monthlySummary, weeklySummary } = useWorkHours();
+  const workLimit = useWorkLimitSettings();
 
-  if (monthlySummary.isLoading || weeklySummary.isLoading) {
+  if (monthlySummary.isLoading || weeklySummary.isLoading || workLimit.isLoading) {
     return (
       <AppScreen title="Work summary">
         <LoadingState label="Loading summary" />
@@ -49,7 +51,7 @@ export function WorkSummaryScreen() {
     );
   }
 
-  if (monthlySummary.isError || weeklySummary.isError) {
+  if (monthlySummary.isError || weeklySummary.isError || workLimit.isError) {
     return (
       <AppScreen title="Work summary">
         <ErrorState
@@ -61,8 +63,10 @@ export function WorkSummaryScreen() {
     );
   }
 
-  const workLimitOverview = monthlySummary.data
-    ? getWorkLimitOverview(monthlySummary.data.workLimit)
+  const workLimitOverview = workLimit.summary
+    ? getWorkLimitOverview(workLimit.summary)
+    : monthlySummary.data
+      ? getWorkLimitOverview(monthlySummary.data.workLimit)
     : null;
 
   return (

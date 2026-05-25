@@ -5,11 +5,9 @@ import { HttpError } from "../../utils/httpError.js";
 import { getMonthlyIncome } from "../work-hours/workHours.service.js";
 import { roundMoney } from "../work-hours/workHours.calculations.js";
 import type {
-  BudgetInput,
   CategorySummaryQuery,
   ExpenseInput,
   MonthlyExpenseQuery,
-  UpdateBudgetInput,
   UpdateExpenseInput
 } from "./expenses.schemas.js";
 
@@ -39,18 +37,6 @@ function expenseInputToData(input: ExpenseInput | UpdateExpenseInput) {
   if (input.paidBy !== undefined) (data as Record<string, unknown>).paidBy = input.paidBy;
   if (input.paymentMethod !== undefined) data.paymentMethod = input.paymentMethod;
   if (input.notes !== undefined || input.note !== undefined) data.notes = input.notes ?? input.note;
-
-  return data;
-}
-
-function budgetInputToData(input: BudgetInput | UpdateBudgetInput) {
-  const data: Prisma.BudgetUncheckedCreateInput | Prisma.BudgetUncheckedUpdateInput = {};
-
-  if (input.year !== undefined) data.year = input.year;
-  if (input.month !== undefined) data.month = input.month;
-  if (input.category !== undefined) data.category = input.category;
-  if (input.amount !== undefined) data.amount = input.amount;
-  if (input.notes !== undefined) data.notes = input.notes;
 
   return data;
 }
@@ -142,47 +128,6 @@ export async function getCategorySpending(userId: string, query: CategorySummary
   return buildCategoryTotals(expenses);
 }
 
-export async function listBudgets(userId: string, query?: Partial<MonthlyExpenseQuery>) {
-  const budgets = await prisma.budget.findMany({
-    where: {
-      userId,
-      year: query?.year,
-      month: query?.month
-    },
-    orderBy: [{ year: "desc" }, { month: "desc" }, { category: "asc" }]
-  });
-
-  return budgets.map(mapBudget);
-}
-
-export async function createBudget(userId: string, input: BudgetInput) {
-  const budget = await prisma.budget.create({
-    data: {
-      ...budgetInputToData(input),
-      userId
-    } as Prisma.BudgetUncheckedCreateInput
-  });
-
-  return mapBudget(budget);
-}
-
-export async function updateBudget(userId: string, id: string, input: UpdateBudgetInput) {
-  await assertBudgetOwner(userId, id);
-  const budget = await prisma.budget.update({
-    where: { id },
-    data: budgetInputToData(input)
-  });
-
-  return mapBudget(budget);
-}
-
-export async function deleteBudget(userId: string, id: string) {
-  await assertBudgetOwner(userId, id);
-  await prisma.budget.delete({ where: { id } });
-
-  return { id };
-}
-
 function buildCategoryTotals(expenses: Expense[]) {
   const totals = new Map<string, number>();
 
@@ -200,13 +145,5 @@ async function assertExpenseOwner(userId: string, id: string) {
 
   if (!expense) {
     throw new HttpError(404, "NOT_FOUND", "Expense not found");
-  }
-}
-
-async function assertBudgetOwner(userId: string, id: string) {
-  const budget = await prisma.budget.findFirst({ where: { id, userId }, select: { id: true } });
-
-  if (!budget) {
-    throw new HttpError(404, "NOT_FOUND", "Budget not found");
   }
 }

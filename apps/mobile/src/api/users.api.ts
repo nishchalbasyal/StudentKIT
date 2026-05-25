@@ -17,7 +17,7 @@ export type UserSummary = {
 };
 
 export type UpdateUserInput = Partial<
-  Pick<User, "name" | "country" | "studentStatus" | "hourlyWageDefault" | "currency" | "avatarUrl" | "university" | "course">
+  Pick<User, "name" | "email" | "country" | "studentStatus" | "hourlyWageDefault" | "currency" | "avatarUrl" | "university" | "course">
 > & {
   yearlyWorkLimitDays?: number;
 };

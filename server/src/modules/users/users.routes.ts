@@ -1,14 +1,27 @@
 import { Router } from "express";
 import { authenticate } from "../../middleware/authenticate.js";
-import { userSearchRateLimit } from "../../middleware/rateLimit.js";
-import { validateQuery } from "../../middleware/validate.js";
-import { validateBody } from "../../middleware/validate.js";
+import { authRateLimit, userSearchRateLimit } from "../../middleware/rateLimit.js";
+import { validateBody, validateQuery } from "../../middleware/validate.js";
 import { dashboard } from "./dashboard.controller.js";
-import { deleteMe, getMe, getMySummary, searchUsers, updateAvatar, updateMe } from "./users.controller.js";
-import { avatarSchema, updateUserMeSchema, userSearchQuerySchema } from "./users.schemas.js";
+import {
+  deleteMe,
+  getMe,
+  getMySummary,
+  register,
+  searchUsers,
+  updateAvatar,
+  updateMe,
+} from "./users.controller.js";
+import {
+  avatarSchema,
+  registerUserSchema,
+  updateUserMeSchema,
+  userSearchQuerySchema,
+} from "./users.schemas.js";
 
 export const usersRoutes = Router();
 
+usersRoutes.post("/users/register", authRateLimit, validateBody(registerUserSchema), register);
 usersRoutes.use(authenticate);
 usersRoutes.get("/dashboard", dashboard);
 usersRoutes.get("/users/me", getMe);

@@ -135,6 +135,20 @@ async function saveLocalWorkLimitSettings(input: Partial<WorkLimitSettings>) {
   return next;
 }
 
+export async function exportLocalWorkLimitSettings() {
+  return getLocalWorkLimitSettings();
+}
+
+export async function importLocalWorkLimitSettings(
+  input?: Partial<WorkLimitSettings> | null,
+) {
+  if (!input) {
+    return saveLocalWorkLimitSettings(defaultWorkLimitSettings);
+  }
+
+  return saveLocalWorkLimitSettings(input);
+}
+
 function startOfUtcDay(date: Date) {
   return new Date(
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),

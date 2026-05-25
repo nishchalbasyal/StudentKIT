@@ -5,26 +5,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 import { env } from "./config/env.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
-import { aiRoutes } from "./modules/ai/ai.routes.js";
-import { authRoutes } from "./modules/auth/auth.routes.js";
-import { budgetsRoutes } from "./modules/budgets/budgets.routes.js";
-import { classesRoutes } from "./modules/classes/classes.routes.js";
-import { cleaningRoutes } from "./modules/cleaning/cleaning.routes.js";
-import { companiesRoutes } from "./modules/companies/companies.routes.js";
-import { couponsRoutes } from "./modules/coupons/coupons.routes.js";
-import { expensesRoutes } from "./modules/expenses/expenses.routes.js";
-import { featuresRoutes } from "./modules/features/features.routes.js";
-import { eventsRoutes } from "./modules/events/events.routes.js";
-import { groceriesRoutes } from "./modules/groceries/groceries.routes.js";
-import { remindersRoutes } from "./modules/reminders/reminders.routes.js";
-import { searchRoutes } from "./modules/search/search.routes.js";
-import { settingsRoutes } from "./modules/settings/settings.routes.js";
-import { workLimitRoutes } from "./modules/work-limit/workLimit.routes.js";
-import { splitRoutes } from "./modules/split/split.routes.js";
-import { syncRoutes } from "./modules/sync/sync.routes.js";
-import { tasksRoutes } from "./modules/tasks/tasks.routes.js";
-import { usersRoutes } from "./modules/users/users.routes.js";
-import { workHoursRoutes } from "./modules/work-hours/workHours.routes.js";
+import { apiRoutes } from "./modules/routes.js";
 
 const app = express();
 
@@ -77,26 +58,9 @@ app.get("/api/health", (_req, res) => {
   res.json({ data: { status: "ok", service: "student-kit-api" } });
 });
 
-app.use("/api/auth", authRoutes);
-app.use("/api", usersRoutes);
-app.use("/api/companies", companiesRoutes);
-app.use("/api/work-shifts", workHoursRoutes);
-app.use("/api/work-limit", workLimitRoutes);
-app.use("/api/expenses", expensesRoutes);
-app.use("/api/budgets", budgetsRoutes);
-app.use("/api/settings", settingsRoutes);
-app.use("/api/sync", syncRoutes);
-app.use("/api/split", splitRoutes);
-app.use("/api/classes", classesRoutes);
-app.use("/api/tasks", tasksRoutes);
-app.use("/api/reminders", remindersRoutes);
-app.use("/api/cleaning", cleaningRoutes);
-app.use("/api/groceries", groceriesRoutes);
-app.use("/api/ai", aiRoutes);
-app.use("/api/features", featuresRoutes);
-app.use("/api/search", searchRoutes);
-app.use("/api/coupons", couponsRoutes);
-app.use("/api/events", eventsRoutes);
+for (const route of apiRoutes) {
+  app.use(route.path, route.router);
+}
 
 app.use(notFoundHandler);
 app.use(errorHandler);

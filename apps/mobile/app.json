@@ -3,7 +3,6 @@
     "name": "StudentKit",
     "slug": "student-kit",
     "version": "0.1.0",
-    "entryPoint": "./index.ts",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "studentkit",

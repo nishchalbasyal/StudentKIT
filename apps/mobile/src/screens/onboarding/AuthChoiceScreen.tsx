@@ -24,17 +24,16 @@ export function AuthChoiceScreen() {
   async function useAccount() {
     const preferences = await getOnboardingPreferences();
     await modulePreferenceService.completeOnboarding(preferences.userEnabledModules, false);
-    navigation.navigate("Auth", { screen: "Login" });
+    navigation.navigate("Auth", { screen: "Register" });
   }
 
   return (
-    <AppScreen title="StudentKit" subtitle="You can use the app without an account.">
+    <AppScreen title="Student Work Tracker" subtitle="Track work hours right away, with or without an account.">
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.card}>
-          <Text style={styles.title}>Do you want to use StudentKit without login?</Text>
+          <Text style={styles.title}>Keep it local or create an account</Text>
           <Text style={styles.copy}>
-            Guest mode saves your tasks, reminders, work hours, expenses, groceries,
-            cleaning routines, and basic split groups locally on this device.
+            Guest mode saves your work hours, calendar entries, and work-limit preferences locally on this device.
           </Text>
         </View>
         <AppButton title="Continue as Guest" icon="phone-portrait-outline" onPress={useGuestMode} />

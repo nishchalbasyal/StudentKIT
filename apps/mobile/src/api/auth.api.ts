@@ -6,7 +6,7 @@ export async function loginApi(input: LoginInput) {
 }
 
 export async function registerApi(input: RegisterInput) {
-  return unwrap<AuthResponse>(await apiClient.post("/auth/register", input));
+  return unwrap<AuthResponse>(await apiClient.post("/users/register", input));
 }
 
 export async function getCurrentUserApi() {
@@ -22,4 +22,3 @@ export async function googleSignInApi(idToken: string) {
     await apiClient.post("/auth/google-signin", { idToken })
   );
 }
-

@@ -5,11 +5,9 @@ type Props = {
   avatarUri?: string;
   avatarText?: string;
   onAvatarPress?: () => void;
-  onMagicPress?: () => void;
   onSearchPress?: () => void;
   onSettingsPress?: () => void;
   showSettings?: boolean;
-  aiConnected?: boolean;
 };
 
 export function AppTopBar({
@@ -17,11 +15,9 @@ export function AppTopBar({
   avatarUri,
   avatarText,
   onAvatarPress,
-  onMagicPress,
   onSearchPress,
   onSettingsPress,
   showSettings = true,
-  aiConnected = true,
 }: Props) {
   return (
     <AppHeader
@@ -29,7 +25,6 @@ export function AppTopBar({
       avatarUri={avatarUri}
       avatarText={avatarText}
       onAvatarPress={onAvatarPress}
-      onMagicPress={aiConnected ? onMagicPress : undefined}
       onSearchPress={onSearchPress}
       onSettingsPress={onSettingsPress}
       showSettings={showSettings}

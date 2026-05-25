@@ -1,642 +1,354 @@
-import { useEffect, useState } from "react";
-import { Controller, useForm, useWatch } from "react-hook-form";
+import { useEffect, useMemo, useState } from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { BONUS_TYPES } from "../../constants/categories";
-import { colors, fontSize, radius, spacing } from "../../constants/colors";
-import { CompanyPicker } from "../../components/work/CompanyPicker";
+import { CompanyPicker } from "../work/CompanyPicker";
 import { AppDatePicker } from "../ui/AppDatePicker";
+import { AppInput } from "../ui/AppInput";
 import { AppTimePicker } from "../ui/AppTimePicker";
 import { StickySaveButton } from "../ui/StickySaveButton";
-import { FormSectionCard } from "../ui/FormSectionCard";
-import { useWorkHours } from "../../hooks/useWorkHours";
-import { useSettings } from "../../hooks/useSettings";
-import type { Company } from "../../types/company.types";
-import type { WorkShiftInput } from "../../types/work.types";
-import type { RootStackParamList } from "../../navigation/types";
-import {
-  getBreakSuggestion,
-  getShiftTimeSuggestion,
-  getWageSuggestion,
-} from "../../utils/suggestionEngine";
-import {
-  workShiftSchema,
-  type WorkShiftFormValues,
-} from "../../validators/work.schema";
+import { colors, fontSize, radius, spacing } from "../../constants/colors";
+import { useCompanies } from "../../hooks/useCompanies";
 import { calculateWorkDuration } from "../../utils/workMath";
-import { defaultSettings } from "../../storage/settingsStorage";
-import { describeWorkLimit } from "../../utils/workLimit";
+import type { Company } from "../../types/company.types";
+import { workShiftSchema, type WorkShiftFormValues } from "../../validators/work.schema";
 
 type Props = {
-  onSubmit: (values: WorkShiftInput) => Promise<void>;
+  onSubmit: (values: WorkShiftFormValues, company: { id: string | null; name: string | null }) => Promise<void>;
   loading?: boolean;
-  initialValues?: Partial<WorkShiftInput>;
+  initialValues?: Partial<WorkShiftFormValues>;
+  initialCompanyId?: string | null;
   submitLabel?: string;
   currency?: string;
 };
 
-function toDateValue(date: Date) {
-  return date.toISOString().slice(0, 10);
+function getTodayDate() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 export function WorkShiftForm({
   onSubmit,
-  loading,
+  loading = false,
   initialValues,
-  submitLabel = "Save Work Entry",
+  initialCompanyId = null,
+  submitLabel = "Save",
   currency = "EUR",
 }: Props) {
-  const [showMore, setShowMore] = useState(false);
-  const navigation =
-    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const settingsHook = useSettings();
-  const workSettings = settingsHook.settings ?? defaultSettings;
-  const today = toDateValue(new Date());
-  const { workShifts } = useWorkHours();
+  const [formError, setFormError] = useState<string | null>(null);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(initialCompanyId);
+  const { companies } = useCompanies();
   const defaultValues: WorkShiftFormValues = {
-    companyId: initialValues?.companyId ?? null,
-    jobName: initialValues?.jobName ?? "",
-    date: initialValues?.date ?? today,
+    workplace: initialValues?.workplace ?? "",
+    date: initialValues?.date ?? getTodayDate(),
     startTime: initialValues?.startTime ?? "09:00",
     endTime: initialValues?.endTime ?? "17:00",
     breakMinutes: initialValues?.breakMinutes ?? 0,
-    hourlyWage: initialValues?.hourlyWage ?? 12.5,
-    bonusType: initialValues?.bonusType ?? "NONE",
-    bonusValue: initialValues?.bonusValue,
-    isPublicHoliday: initialValues?.isPublicHoliday ?? false,
-    notes: initialValues?.notes ?? "",
+    hourlyWage: initialValues?.hourlyWage ?? 12,
+    note: initialValues?.note ?? "",
   };
 
-  const { control, handleSubmit, setValue, reset, formState } =
-    useForm<WorkShiftFormValues>({
-      resolver: zodResolver(workShiftSchema) as never,
-      defaultValues,
-    });
+  const {
+    control,
+    handleSubmit,
+    watch,
+    reset,
+    setValue,
+    formState: { errors },
+  } = useForm<WorkShiftFormValues>({
+    resolver: zodResolver(workShiftSchema) as never,
+    defaultValues,
+  });
+
+  const selectedCompany = useMemo(
+    () => companies.data?.find((company) => company.id === selectedCompanyId) ?? null,
+    [companies.data, selectedCompanyId],
+  );
+
+  useEffect(() => {
+    setSelectedCompanyId(initialCompanyId);
+  }, [initialCompanyId]);
 
   useEffect(() => {
     reset(defaultValues);
   }, [
-    initialValues?.bonusType,
-    initialValues?.bonusValue,
-    initialValues?.breakMinutes,
-    initialValues?.companyId,
-    initialValues?.date,
-    initialValues?.endTime,
-    initialValues?.hourlyWage,
-    initialValues?.isPublicHoliday,
-    initialValues?.jobName,
-    initialValues?.notes,
-    initialValues?.startTime,
+    defaultValues.breakMinutes,
+    defaultValues.date,
+    defaultValues.endTime,
+    defaultValues.hourlyWage,
+    defaultValues.note,
+    defaultValues.startTime,
+    defaultValues.workplace,
     reset,
   ]);
 
-  const values = useWatch({ control });
-  const selectedDate = values.date ?? today;
-  const startTime = values.startTime ?? "09:00";
-  const endTime = values.endTime ?? "17:00";
-  const breakMinutes = Number(values.breakMinutes ?? 0);
-  const duration = calculateWorkDuration(
-    selectedDate,
-    startTime,
-    endTime,
-    breakMinutes,
+  const values = watch();
+  const duration = useMemo(
+    () =>
+      calculateWorkDuration(
+        values.date ?? getTodayDate(),
+        values.startTime ?? "09:00",
+        values.endTime ?? "17:00",
+        Number(values.breakMinutes ?? 0),
+      ),
+    [values.breakMinutes, values.date, values.endTime, values.startTime],
   );
-  const workedHours = Math.max(0, duration.hours);
-  const income = workedHours * Number(values.hourlyWage ?? 0);
-  const currencyLabel = currency === "EUR" ? "EUR" : currency;
+  const totalHours = Math.max(0, duration.hours);
+  const estimatedIncome = totalHours * Number(values.hourlyWage ?? 0);
 
-  const handleInvalid = () => {
-    const firstError =
-      formState.errors.jobName?.message ??
-      formState.errors.date?.message ??
-      formState.errors.startTime?.message ??
-      formState.errors.endTime?.message ??
-      formState.errors.hourlyWage?.message ??
-      formState.errors.breakMinutes?.message ??
-      "Please check the highlighted fields.";
+  function applyCompanyDefaults(company: Company | null) {
+    setSelectedCompanyId(company?.id ?? null);
 
-    Alert.alert("Check work entry", firstError);
-  };
-
-  const handleCompanySelect = (company: Company | null) => {
-    if (company) {
-      setValue("companyId", company.id, { shouldValidate: true });
-      setValue("jobName", company.name, { shouldValidate: true });
-      const wage =
-        company.defaultHourlyWage ??
-        getWageSuggestion(company.name, workShifts.data ?? []);
-      const breakSuggest =
-        company.defaultBreakMinutes ??
-        getBreakSuggestion(company.name, workShifts.data ?? []);
-      const shiftTime = getShiftTimeSuggestion(
-        company.name,
-        workShifts.data ?? [],
-      );
-      if (wage !== null) setValue("hourlyWage", wage, { shouldValidate: true });
-      if (breakSuggest !== null)
-        setValue("breakMinutes", breakSuggest, { shouldValidate: true });
-      if (company.commonStartTime && company.commonEndTime) {
-        setValue("startTime", company.commonStartTime, {
-          shouldValidate: true,
-        });
-        setValue("endTime", company.commonEndTime, { shouldValidate: true });
-      } else if (shiftTime) {
-        setValue("startTime", shiftTime.startTime, { shouldValidate: true });
-        setValue("endTime", shiftTime.endTime, { shouldValidate: true });
-      }
-      setValue("bonusType", company.defaultBonusType ?? "NONE", {
-        shouldValidate: true,
-      });
-      if (
-        company.defaultBonusValue !== null &&
-        company.defaultBonusValue !== undefined
-      ) {
-        setValue("bonusValue", company.defaultBonusValue, {
-          shouldValidate: true,
-        });
-      }
-    } else {
-      setValue("companyId", null, { shouldValidate: true });
+    if (!company) {
+      return;
     }
-  };
+
+    setValue("workplace", company.name, { shouldDirty: true });
+
+    if (company.defaultHourlyWage !== null && company.defaultHourlyWage !== undefined) {
+      setValue("hourlyWage", company.defaultHourlyWage, { shouldDirty: true });
+    }
+
+    setValue("breakMinutes", company.defaultBreakMinutes ?? 0, { shouldDirty: true });
+
+    if (company.commonStartTime) {
+      setValue("startTime", company.commonStartTime, { shouldDirty: true });
+    }
+
+    if (company.commonEndTime) {
+      setValue("endTime", company.commonEndTime, { shouldDirty: true });
+    }
+  }
+
+  async function submit(valuesToSave: WorkShiftFormValues) {
+    setFormError(null);
+    await onSubmit(valuesToSave, {
+      id: selectedCompanyId,
+      name: selectedCompany?.name ?? null,
+    });
+  }
+
+  const firstError =
+    errors.date?.message ||
+    errors.startTime?.message ||
+    errors.endTime?.message ||
+    errors.breakMinutes?.message ||
+    errors.hourlyWage?.message ||
+    formError;
 
   return (
     <StickySaveButton
       label={submitLabel}
-      onPress={handleSubmit(onSubmit, handleInvalid)}
       loading={loading}
-      subtitle={
-        values.jobName
-          ? `${values.jobName} - ${currencyLabel} ${income.toFixed(2)}`
-          : "New work entry"
-      }
+      onPress={handleSubmit((nextValues) => void submit(nextValues))}
+      subtitle={`${totalHours.toFixed(1)}h · ${currency} ${estimatedIncome.toFixed(2)}`}
     >
-      <ScrollView
-        style={styles.scroller}
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-      >
-        <FormSectionCard
-          title="Shift"
-          subtitle="Only the basics are needed. Add details if you want."
-          gap="sm"
-        >
-          <Controller
-            control={control}
-            name="jobName"
-            render={({ field, fieldState }) => (
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Workplace or job</Text>
-                <TextInput
-                  value={field.value}
-                  onChangeText={(value) => {
-                    setValue("companyId", null, { shouldValidate: false });
-                    field.onChange(value);
-                  }}
-                  placeholder="Cafe, warehouse, tutoring..."
-                  placeholderTextColor={colors.muted}
-                  style={styles.input}
-                />
-                {fieldState.error ? (
-                  <Text style={styles.error}>{fieldState.error.message}</Text>
-                ) : null}
-              </View>
-            )}
-          />
-
-          <Controller
-            control={control}
-            name="companyId"
-            render={({ field }) => (
-              <CompanyPicker
-                selectedId={field.value ?? undefined}
-                onSelect={handleCompanySelect}
-                onCreateNew={() => navigation.navigate("AddEditCompany")}
-              />
-            )}
-          />
-
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Work entry</Text>
+          <View style={styles.companyBlock}>
+            <Text style={styles.helperTitle}>Company or workplace</Text>
+            <Text style={styles.helperText}>
+              Choose a saved company to auto-fill the wage, break, and common shift times.
+            </Text>
+            <CompanyPicker selectedId={selectedCompanyId} onSelect={applyCompanyDefaults} />
+            <Text style={styles.helperText}>
+              If this is a one-off shift, type a custom workplace name below instead.
+            </Text>
+          </View>
           <Controller
             control={control}
             name="date"
-            render={({ field, fieldState }) => (
+            render={({ field }) => (
               <AppDatePicker
                 label="Date"
                 value={field.value}
                 onChange={field.onChange}
-                error={fieldState.error?.message}
+                error={errors.date?.message}
               />
             )}
           />
-
-          <View style={styles.timeRow}>
-            <View style={styles.timeCol}>
+          <View style={styles.row}>
+            <View style={styles.half}>
               <Controller
                 control={control}
                 name="startTime"
-                render={({ field, fieldState }) => (
+                render={({ field }) => (
                   <AppTimePicker
-                    label="Start"
+                    label="Start time"
                     value={field.value}
                     onChange={field.onChange}
-                    error={fieldState.error?.message}
+                    error={errors.startTime?.message}
                   />
                 )}
               />
             </View>
-            <View style={styles.timeCol}>
+            <View style={styles.half}>
               <Controller
                 control={control}
                 name="endTime"
-                render={({ field, fieldState }) => (
+                render={({ field }) => (
                   <AppTimePicker
-                    label="End"
+                    label="End time"
                     value={field.value}
                     onChange={field.onChange}
-                    error={fieldState.error?.message}
+                    error={errors.endTime?.message}
                   />
                 )}
               />
             </View>
           </View>
-
-          <View style={styles.compactRow}>
-            <View style={styles.compactCol}>
+          <View style={styles.row}>
+            <View style={styles.half}>
               <Controller
                 control={control}
                 name="breakMinutes"
-                render={({ field, fieldState }) => (
-                  <View style={styles.field}>
-                    <Text style={styles.fieldLabel}>Break</Text>
-                    <View style={styles.breakChips}>
-                      {[0, 15, 30, 45, 60].map((minutes) => (
-                        <Pressable
-                          key={minutes}
-                          style={[
-                            styles.breakChip,
-                            Number(field.value ?? 0) === minutes &&
-                              styles.breakChipActive,
-                          ]}
-                          onPress={() => field.onChange(minutes)}
-                        >
-                          <Text
-                            style={[
-                              styles.breakChipText,
-                              Number(field.value ?? 0) === minutes &&
-                                styles.breakChipTextActive,
-                            ]}
-                          >
-                            {minutes}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                    {fieldState.error ? (
-                      <Text style={styles.error}>
-                        {fieldState.error.message}
-                      </Text>
-                    ) : null}
-                  </View>
+                render={({ field }) => (
+                  <AppInput
+                    label="Break minutes"
+                    value={String(field.value ?? 0)}
+                    onChangeText={field.onChange}
+                    keyboardType="number-pad"
+                    error={errors.breakMinutes?.message}
+                  />
                 )}
               />
             </View>
-
-            <View style={styles.compactCol}>
+            <View style={styles.half}>
               <Controller
                 control={control}
                 name="hourlyWage"
-                render={({ field, fieldState }) => (
-                  <View style={styles.field}>
-                    <Text style={styles.fieldLabel}>Hourly wage</Text>
-                    <View style={styles.wageInput}>
-                      <Text style={styles.wageCurrency}>{currencyLabel}</Text>
-                      <TextInput
-                        value={String(field.value ?? "")}
-                        onChangeText={field.onChange}
-                        keyboardType="decimal-pad"
-                        style={styles.wageNumber}
-                        placeholder="14.00"
-                        placeholderTextColor={colors.muted}
-                      />
-                    </View>
-                    {fieldState.error ? (
-                      <Text style={styles.error}>
-                        {fieldState.error.message}
-                      </Text>
-                    ) : null}
-                  </View>
+                render={({ field }) => (
+                  <AppInput
+                    label="Hourly wage"
+                    value={String(field.value ?? "")}
+                    onChangeText={field.onChange}
+                    keyboardType="decimal-pad"
+                    error={errors.hourlyWage?.message}
+                  />
                 )}
               />
             </View>
           </View>
-
-          <View style={styles.previewRow}>
-            <View style={styles.previewItem}>
-              <Text style={styles.previewLabel}>Hours</Text>
-              <Text style={styles.previewValue}>{workedHours.toFixed(1)}h</Text>
+          <Controller
+            control={control}
+            name="workplace"
+            render={({ field }) => (
+              <AppInput
+                label="Custom workplace optional"
+                value={field.value ?? ""}
+                onChangeText={field.onChange}
+                placeholder="Night shift, campus job, or other workplace"
+              />
+            )}
+          />
+          <Controller
+            control={control}
+            name="note"
+            render={({ field }) => (
+              <AppInput
+                label="Note optional"
+                value={field.value ?? ""}
+                onChangeText={field.onChange}
+                multiline
+                style={styles.noteInput}
+              />
+            )}
+          />
+          <View style={styles.summaryBox}>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Total hours</Text>
+              <Text style={styles.summaryValue}>{totalHours.toFixed(2)}h</Text>
             </View>
-            <View style={styles.previewDivider} />
-            <View style={styles.previewItem}>
-              <Text style={styles.previewLabel}>Income</Text>
-              <Text style={styles.previewValue}>
-                {currencyLabel} {income.toFixed(2)}
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Estimated income</Text>
+              <Text style={styles.summaryValue}>
+                {currency} {estimatedIncome.toFixed(2)}
               </Text>
             </View>
           </View>
-
-          <Text style={styles.limitNote}>
-            Active work limit: {describeWorkLimit(workSettings)}
-          </Text>
-
-          {duration.warning ? (
-            <Text style={styles.warning}>{duration.warning}</Text>
-          ) : null}
-        </FormSectionCard>
-
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setShowMore((value) => !value)}
-          style={({ pressed }) => [
-            styles.moreButton,
-            pressed && styles.pressed,
-          ]}
-        >
-          <Text style={styles.moreButtonText}>
-            {showMore ? "Hide optional details" : "More options"}
-          </Text>
-          <Ionicons
-            name={showMore ? "chevron-up" : "chevron-down"}
-            size={18}
-            color={colors.primary}
-          />
-        </Pressable>
-
-        {showMore ? (
-          <FormSectionCard title="Optional details" gap="sm">
-            <Controller
-              control={control}
-              name="bonusType"
-              render={({ field }) => (
-                <View style={styles.field}>
-                  <Text style={styles.fieldLabel}>Bonus type</Text>
-                  <View style={styles.bonusChips}>
-                    {BONUS_TYPES.slice(0, 4).map((bonus) => (
-                      <Pressable
-                        key={bonus}
-                        style={[
-                          styles.bonusChip,
-                          field.value === bonus && styles.bonusChipActive,
-                        ]}
-                        onPress={() => field.onChange(bonus)}
-                      >
-                        <Text
-                          style={[
-                            styles.bonusChipText,
-                            field.value === bonus && styles.bonusChipTextActive,
-                          ]}
-                        >
-                          {bonus.replace("_", " ")}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </View>
-              )}
-            />
-
-            <Controller
-              control={control}
-              name="notes"
-              render={({ field }) => (
-                <TextInput
-                  value={field.value ?? ""}
-                  onChangeText={field.onChange}
-                  placeholder="Notes"
-                  placeholderTextColor={colors.muted}
-                  multiline
-                  style={styles.notes}
-                />
-              )}
-            />
-          </FormSectionCard>
-        ) : null}
+          {duration.warning ? <Text style={styles.warning}>{duration.warning}</Text> : null}
+          {firstError ? <Text style={styles.errorText}>{firstError}</Text> : null}
+        </View>
       </ScrollView>
     </StickySaveButton>
   );
 }
 
 const styles = StyleSheet.create({
-  scroller: {
-    flex: 1,
-  },
-  scroll: {
-    gap: spacing.sm,
+  content: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,
     paddingBottom: spacing.md,
+    gap: spacing.sm,
   },
-  field: {
-    gap: spacing.xs,
-  },
-  fieldLabel: {
-    color: colors.text,
-    fontSize: fontSize.caption,
-    fontWeight: "700",
-  },
-  input: {
-    minHeight: 46,
-    borderRadius: radius.md,
+  card: {
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  companyBlock: {
+    gap: spacing.xs,
+  },
+  sectionTitle: {
     color: colors.text,
-    paddingHorizontal: spacing.md,
     fontSize: fontSize.body,
-    fontWeight: "700",
+    fontWeight: "800",
   },
-  error: {
-    color: colors.danger,
-    fontSize: fontSize.caption,
-    fontWeight: "500",
-  },
-  timeRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: spacing.sm,
-  },
-  timeCol: {
-    flex: 1,
-  },
-  compactRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-  },
-  compactCol: {
-    flex: 1,
-  },
-  breakChips: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.xs,
-  },
-  breakChip: {
-    minWidth: 34,
-    paddingHorizontal: spacing.xs,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  breakChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  breakChipText: {
+  helperTitle: {
     color: colors.text,
     fontSize: fontSize.caption,
-    fontWeight: "600",
+    fontWeight: "800",
   },
-  breakChipTextActive: {
-    color: "white",
-    fontWeight: "700",
+  helperText: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 16,
   },
-  previewRow: {
+  row: {
     flexDirection: "row",
-    alignItems: "center",
+    gap: spacing.sm,
+  },
+  half: {
+    flex: 1,
+  },
+  noteInput: {
+    minHeight: 86,
+    textAlignVertical: "top",
+    paddingTop: 10,
+  },
+  summaryBox: {
+    flexDirection: "row",
+    gap: spacing.xs,
+  },
+  summaryItem: {
+    flex: 1,
+    borderRadius: radius.md,
     backgroundColor: colors.background,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 10,
+    gap: 2,
   },
-  previewItem: {
-    flex: 1,
-    alignItems: "center",
-  },
-  previewLabel: {
+  summaryLabel: {
     color: colors.muted,
-    fontSize: fontSize.caption,
-    fontWeight: "600",
+    fontSize: 11,
+    fontWeight: "700",
   },
-  previewValue: {
+  summaryValue: {
     color: colors.text,
-    fontSize: fontSize.body,
-    fontWeight: "700",
-    marginTop: spacing.xs,
-  },
-  limitNote: {
-    color: colors.muted,
     fontSize: fontSize.caption,
-    fontWeight: "700",
-    lineHeight: 18,
-  },
-  previewDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: colors.border,
+    fontWeight: "800",
   },
   warning: {
     color: colors.warning,
     fontSize: fontSize.caption,
-    fontWeight: "600",
-    textAlign: "center",
+    lineHeight: 16,
   },
-  wageInput: {
-    minHeight: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  wageCurrency: {
-    color: colors.muted,
+  errorText: {
+    color: colors.danger,
     fontSize: fontSize.caption,
-    fontWeight: "800",
-    marginRight: spacing.xs,
-  },
-  wageNumber: {
-    flex: 1,
-    color: colors.text,
-    fontSize: fontSize.body,
-    fontWeight: "700",
-    padding: 0,
-  },
-  bonusChips: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.xs,
-  },
-  bonusChip: {
-    flex: 1,
-    minWidth: "48%",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-  },
-  bonusChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  bonusChipText: {
-    color: colors.text,
-    fontSize: fontSize.caption,
-    fontWeight: "600",
-  },
-  bonusChipTextActive: {
-    color: "white",
-    fontWeight: "700",
-  },
-  notes: {
-    minHeight: 78,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    color: colors.text,
-    fontSize: fontSize.body,
-    textAlignVertical: "top",
-  },
-  moreButton: {
-    minHeight: 44,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.xs,
-  },
-  moreButtonText: {
-    color: colors.primary,
-    fontSize: fontSize.body,
-    fontWeight: "800",
-  },
-  pressed: {
-    opacity: 0.8,
+    lineHeight: 16,
   },
 });

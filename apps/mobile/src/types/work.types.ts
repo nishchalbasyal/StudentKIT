@@ -31,6 +31,9 @@ export type WorkShift = {
   notes?: string | null;
   calculatedHours: number;
   calculatedIncome: number;
+  createdAt?: string;
+  updatedAt?: string;
+  syncedAt?: string | null;
 };
 
 export type WorkLimitUsage = {

@@ -8,7 +8,12 @@ import { AppTopBar } from "../../components/ui/AppTopBar";
 import { colors, fontSize, radius, spacing } from "../../constants/colors";
 import { useAuthStore } from "../../store/authStore";
 
-const examples = ["I spent EUR 10 at Aldi", "I worked 5 hours today", "Remind me about laundry", "Add milk to grocery list"];
+const examples = [
+  "I worked 5 hours today",
+  "I worked at the cafe from 16:00 to 22:00 with a 30 min break",
+  "Show me a quick summary of this week's shifts",
+  "Help me check if I am close to my work limit",
+];
 
 export function AIAssistantScreen() {
   const user = useAuthStore((state) => state.user);
@@ -21,7 +26,11 @@ export function AIAssistantScreen() {
     setSheetVisible(true);
   }
 
-  function parsePrompt() {
+  function previewPrompt() {
+    setPreview(true);
+  }
+
+  function savePrompt() {
     setToastVisible(true);
     setTimeout(() => setToastVisible(false), 3000);
     setPreview(false);
@@ -32,17 +41,17 @@ export function AIAssistantScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <AppTopBar title="AI Assistant" avatarText={user?.name ?? "ST"} />
 
-        <Text style={styles.sectionTitle}>Daily AI Suggestions</Text>
+        <Text style={styles.sectionTitle}>Work AI</Text>
         <View style={styles.suggestions}>
-          <Suggestion label="Expense insight" icon="wallet-outline" onPress={showComingSoon} />
+          <Suggestion label="Shift summary" icon="time-outline" onPress={showComingSoon} />
           <Suggestion label="Work insight" icon="briefcase-outline" onPress={showComingSoon} />
-          <Suggestion label="Study insight" icon="school-outline" onPress={showComingSoon} />
+          <Suggestion label="Limit warning" icon="alert-circle-outline" onPress={showComingSoon} />
           <Suggestion label="Weekly recap" icon="calendar-outline" onPress={showComingSoon} />
         </View>
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>AI features coming soon</Text>
+          <Text style={styles.cardTitle}>AI is reserved for work-hour help</Text>
           <Text style={styles.copy}>
-            StudentKit will later help you add tasks, expenses, work hours, and reminders using natural language. For now, you can use all core features manually for free.
+            The app is trimmed down to work tracking right now. This AI space stays available for future shift parsing, summaries, and work-limit guidance.
           </Text>
         </View>
 
@@ -67,7 +76,7 @@ export function AIAssistantScreen() {
             ))}
           </View>
           <View style={styles.buttonRow}>
-            <AppButton title="Preview" icon="sparkles-outline" onPress={parsePrompt} />
+            <AppButton title="Preview" icon="sparkles-outline" onPress={previewPrompt} />
             <Pressable style={styles.voice}><Ionicons name="mic-outline" size={22} color={colors.primary} /></Pressable>
           </View>
         </View>
@@ -75,10 +84,10 @@ export function AIAssistantScreen() {
         {preview ? (
           <View style={styles.previewCard}>
             <Text style={styles.cardTitle}>Does this look correct?</Text>
-            <Info label="Type" value={prompt.toLowerCase().includes("worked") ? "Work Shift" : prompt.toLowerCase().includes("spent") ? "Expense" : "Reminder"} />
-            <Info label="Parsed text" value={prompt || "I worked at bakery from 16:00 to 22:00 with 30 min break"} />
+            <Info label="Type" value="Work Shift" />
+            <Info label="Parsed text" value={prompt || "I worked at the bakery from 16:00 to 22:00 with a 30 min break"} />
             <View style={styles.previewActions}>
-              <AppButton title="Save" icon="checkmark-outline" onPress={parsePrompt} />
+              <AppButton title="Save" icon="checkmark-outline" onPress={savePrompt} />
               <AppButton title="Edit" variant="secondary" icon="create-outline" onPress={() => setPreview(false)} />
               <AppButton title="Cancel" variant="ghost" onPress={() => setPreview(false)} />
             </View>
@@ -90,7 +99,7 @@ export function AIAssistantScreen() {
           <Pressable style={styles.sheet} onPress={(event) => event.stopPropagation()}>
             <Text style={styles.sheetTitle}>AI features coming soon</Text>
             <Text style={styles.sheetCopy}>
-              StudentKit will later help you add tasks, expenses, work hours, and reminders using natural language. For now, you can use all core features manually for free.
+              StudentKit will later help you turn natural language into work entries, summaries, and work-limit guidance. Manual work logging is ready now.
             </Text>
             <AppButton title="Got it" onPress={() => setSheetVisible(false)} />
           </Pressable>

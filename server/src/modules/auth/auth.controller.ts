@@ -5,15 +5,9 @@ import {
   getCurrentUser,
   loginUser,
   refreshToken,
-  registerUser,
   updateUserProfile
 } from "./auth.service.js";
 import { authenticateWithGoogle } from "./google-oauth.service.js";
-
-export const register = asyncHandler(async (req: Request, res: Response) => {
-  const result = await registerUser(req.body);
-  return sendData(res, result, 201);
-});
 
 export const login = asyncHandler(async (req: Request, res: Response) => {
   const result = await loginUser(req.body);
@@ -39,4 +33,3 @@ export const updateMe = asyncHandler(async (req: Request, res: Response) => {
   const result = await updateUserProfile(req.user!.id, req.body);
   return sendData(res, result);
 });
-

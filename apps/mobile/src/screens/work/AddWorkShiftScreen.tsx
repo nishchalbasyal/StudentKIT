@@ -11,7 +11,9 @@ import { colors, fontSize, spacing } from "../../constants/colors";
 import { useWorkHours } from "../../hooks/useWorkHours";
 import type { RootStackParamList } from "../../navigation/types";
 import { useAuthStore } from "../../store/authStore";
+import { showToast } from "../../utils/showToast";
 import type { WorkShiftInput } from "../../types/work.types";
+import type { WorkShiftFormValues } from "../../validators/work.schema";
 
 type Route = RouteProp<RootStackParamList, "AddWorkShift">;
 type Navigation = NativeStackNavigationProp<RootStackParamList>;
@@ -24,35 +26,17 @@ export function AddWorkShiftScreen() {
   const editId = route.params?.workShiftId;
   const duplicateFromId = route.params?.duplicateFromId;
   const sourceShift = workShifts.data?.find((shift) => shift.id === (editId ?? duplicateFromId));
-  const initialValues: Partial<WorkShiftInput> | undefined = sourceShift
+  const initialValues: Partial<WorkShiftFormValues> | undefined = sourceShift
     ? {
-        companyId: sourceShift.companyId ?? null,
-        jobName: sourceShift.jobName,
+        workplace: sourceShift.jobName,
         date: sourceShift.date,
         startTime: sourceShift.startTime,
         endTime: sourceShift.endTime,
         breakMinutes: sourceShift.breakMinutes,
         hourlyWage: sourceShift.hourlyWage,
-        bonusType: sourceShift.bonusType,
-        bonusValue: sourceShift.bonusValue ?? undefined,
-        isPublicHoliday: sourceShift.isPublicHoliday,
-        notes: sourceShift.notes ?? "",
+        note: sourceShift.notes ?? "",
       }
     : undefined;
-
-  async function handleSubmit(values: WorkShiftInput) {
-    try {
-      if (editId) {
-        await updateWorkShift({ id: editId, input: values });
-      } else {
-        await createWorkShift(values);
-      }
-      Alert.alert("Saved", editId ? "Work entry updated." : "Work entry added.");
-      navigation.goBack();
-    } catch (error) {
-      Alert.alert("Could not save work entry", getApiErrorMessage(error));
-    }
-  }
 
   if ((editId || duplicateFromId) && workShifts.isLoading) {
     return <SafeAreaView edges={["top"]} style={styles.safe}><LoadingState label="Loading work entry" /></SafeAreaView>;
@@ -72,14 +56,40 @@ export function AddWorkShiftScreen() {
         <Pressable accessibilityRole="button" onPress={() => navigation.goBack()} style={styles.iconButton}>
           <Ionicons name="arrow-back" size={22} color={colors.text} />
         </Pressable>
-        <Text numberOfLines={1} style={styles.title}>{editId ? "Edit Work Entry" : duplicateFromId ? "Duplicate Work Entry" : "Add Work Entry"}</Text>
+        <Text numberOfLines={1} style={styles.title}>{editId ? "Edit Work Entry" : "Add Work Entry"}</Text>
         <View style={styles.iconButton}><Ionicons name="briefcase-outline" size={20} color={colors.primary} /></View>
       </View>
 
       <WorkShiftForm
-        onSubmit={handleSubmit}
+        onSubmit={async (values, company) => {
+          const payload: WorkShiftInput = {
+            companyId: company.id,
+            jobName: values.workplace?.trim() || company.name || "Work shift",
+            date: values.date,
+            startTime: values.startTime,
+            endTime: values.endTime,
+            breakMinutes: Number(values.breakMinutes),
+            hourlyWage: Number(values.hourlyWage),
+            bonusType: "NONE",
+            isPublicHoliday: false,
+            notes: values.note?.trim() || undefined,
+          };
+
+          try {
+            if (editId) {
+              await updateWorkShift({ id: editId, input: payload });
+            } else {
+              await createWorkShift(payload);
+            }
+            showToast(editId ? "Work entry saved." : "Work entry saved.");
+            navigation.goBack();
+          } catch (error) {
+            Alert.alert("Could not save work entry", getApiErrorMessage(error));
+          }
+        }}
         loading={isSaving}
         initialValues={initialValues}
+        initialCompanyId={sourceShift?.companyId ?? null}
         submitLabel={editId ? "Save Changes" : "Save Work Entry"}
         currency={user?.currency}
       />

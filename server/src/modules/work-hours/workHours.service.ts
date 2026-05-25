@@ -46,6 +46,7 @@ function mapShift(shift: WorkShift) {
     bonusValue: shift.bonusValue ? Number(shift.bonusValue) : null,
     calculatedHours: hours,
     calculatedIncome: income,
+    syncedAt: shift.updatedAt,
   };
 }
 

@@ -14,12 +14,10 @@ type Props = {
   avatarUri?: string | null;
   showBack?: boolean;
   showSettings?: boolean;
-  aiTarget?: "AIAssistant" | "AddWithAI";
   onBackPress?: () => void;
   onAvatarPress?: () => void;
   onSearchPress?: () => void;
   onSettingsPress?: () => void;
-  onMagicPress?: () => void;
 };
 
 export function AppHeader({
@@ -28,12 +26,10 @@ export function AppHeader({
   avatarUri,
   showBack = false,
   showSettings = false,
-  aiTarget = "AIAssistant",
   onBackPress,
   onAvatarPress,
   onSearchPress,
   onSettingsPress,
-  onMagicPress,
 }: Props) {
   const navigation = useNavigation<Navigation>();
 
@@ -50,7 +46,10 @@ export function AppHeader({
       ) : (
         <Pressable
           accessibilityRole="button"
-          onPress={onAvatarPress ?? (() => navigation.navigate("Profile"))}
+          onPress={
+            onAvatarPress ??
+            (() => navigation.navigate("Main", { screen: "Settings" }))
+          }
           style={({ pressed }) => [styles.avatarButton, pressed && styles.pressed]}
         >
           <AvatarCircle label={avatarText} uri={avatarUri} size={38} />
@@ -60,24 +59,13 @@ export function AppHeader({
       <Text numberOfLines={1} style={styles.title}>{title}</Text>
 
       <View style={styles.actions}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onMagicPress ?? (() => navigation.navigate(aiTarget))}
-          style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}
-        >
-          <Ionicons name="sparkles-outline" size={21} color={colors.primary} />
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onSearchPress ?? (() => navigation.navigate("GlobalSearch"))}
-          style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}
-        >
-          <Ionicons name="search-outline" size={21} color={colors.text} />
-        </Pressable>
         {showSettings ? (
           <Pressable
             accessibilityRole="button"
-            onPress={onSettingsPress ?? (() => navigation.navigate("Settings"))}
+            onPress={
+              onSettingsPress ??
+              (() => navigation.navigate("Main", { screen: "Settings" }))
+            }
             style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}
           >
             <Ionicons name="settings-outline" size={21} color={colors.text} />
@@ -104,8 +92,8 @@ const styles = StyleSheet.create({
   title: {
     flex: 1,
     color: colors.text,
-    fontSize: 21,
-    fontWeight: "900",
+    fontSize: 19,
+    fontWeight: "800",
   },
   actions: {
     flexDirection: "row",

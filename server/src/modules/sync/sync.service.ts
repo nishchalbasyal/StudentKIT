@@ -5,6 +5,8 @@ import {
   deleteReminder,
   syncReminders,
 } from "../reminders/reminders.service.js";
+import { parseDateOnly, parseTimeOnly, toDateOnlyString, toTimeOnlyString } from "../../utils/date.js";
+import { getCurrentWorkLimitSummary } from "../work-limit/workLimit.service.js";
 import type { SyncQueueItemInput } from "./sync.schemas.js";
 
 function asDate(value?: string) {
@@ -207,6 +209,40 @@ function normalizeReminderPayload(payload: unknown) {
   };
 }
 
+function normalizeWorkEntryPayload(payload: unknown) {
+  const value = (payload ?? {}) as Record<string, unknown>;
+  return {
+    id: typeof value.id === "string" ? value.id : undefined,
+    companyId: typeof value.companyId === "string" ? value.companyId : null,
+    jobName:
+      typeof value.jobName === "string" && value.jobName.trim().length > 0
+        ? value.jobName
+        : "Work shift",
+    date: typeof value.date === "string" ? value.date : undefined,
+    startTime: typeof value.startTime === "string" ? value.startTime : undefined,
+    endTime: typeof value.endTime === "string" ? value.endTime : undefined,
+    breakMinutes:
+      typeof value.breakMinutes === "number"
+        ? value.breakMinutes
+        : typeof value.breakMinutes === "string"
+          ? Number(value.breakMinutes)
+          : 0,
+    hourlyWage:
+      typeof value.hourlyWage === "number"
+        ? value.hourlyWage
+        : typeof value.hourlyWage === "string"
+          ? Number(value.hourlyWage)
+          : 0,
+    notes:
+      typeof value.notes === "string"
+        ? value.notes
+        : typeof value.note === "string"
+          ? value.note
+          : undefined,
+    syncedAt: typeof value.syncedAt === "string" ? value.syncedAt : undefined,
+  };
+}
+
 export async function processSyncQueueItem(
   userId: string,
   input: SyncQueueItemInput,
@@ -288,6 +324,67 @@ export async function processSyncQueueItem(
     };
   }
 
+  if (input.entityType === "workEntry") {
+    const payload = normalizeWorkEntryPayload(input.payload);
+
+    if (input.operation === "DELETE") {
+      await prisma.workShift.deleteMany({
+        where: { id: payload.id ?? input.entityId, userId },
+      });
+      return {
+        status: "deleted",
+        entityType: input.entityType,
+        entityId: input.entityId,
+        syncedAt: timestamp,
+      };
+    }
+
+    if (!payload.id || !payload.date || !payload.startTime || !payload.endTime) {
+      return {
+        status: "rejected",
+        entityType: input.entityType,
+        entityId: input.entityId,
+        syncedAt: timestamp,
+        note: "Missing required work entry fields.",
+      };
+    }
+
+    await prisma.workShift.upsert({
+      where: { id: payload.id },
+      update: {
+        companyId: payload.companyId,
+        jobName: payload.jobName,
+        date: parseDateOnly(payload.date),
+        startTime: parseTimeOnly(payload.startTime),
+        endTime: parseTimeOnly(payload.endTime),
+        breakMinutes: Math.max(0, payload.breakMinutes),
+        hourlyWage: payload.hourlyWage,
+        notes: payload.notes,
+      },
+      create: {
+        id: payload.id,
+        userId,
+        companyId: payload.companyId,
+        jobName: payload.jobName,
+        date: parseDateOnly(payload.date),
+        startTime: parseTimeOnly(payload.startTime),
+        endTime: parseTimeOnly(payload.endTime),
+        breakMinutes: Math.max(0, payload.breakMinutes),
+        hourlyWage: payload.hourlyWage,
+        bonusType: "NONE",
+        isPublicHoliday: false,
+        notes: payload.notes,
+      },
+    });
+
+    return {
+      status: "updated",
+      entityType: input.entityType,
+      entityId: payload.id,
+      syncedAt: timestamp,
+    };
+  }
+
   return {
     status: "accepted",
     entityType: input.entityType,
@@ -300,7 +397,7 @@ export async function processSyncQueueItem(
 
 export async function getSyncSnapshot(userId: string, since?: string) {
   const date = asDate(since);
-  const [settings, budgets, reminders] = await Promise.all([
+  const [settings, budgets, reminders, workEntries, workLimit] = await Promise.all([
     SettingsService.get(userId),
     prisma.budget.findMany({
       where: { userId, updatedAt: { gt: date } },
@@ -310,6 +407,11 @@ export async function getSyncSnapshot(userId: string, since?: string) {
       where: { userId, updatedAt: { gt: date } },
       orderBy: { updatedAt: "asc" },
     }),
+    prisma.workShift.findMany({
+      where: { userId, updatedAt: { gt: date } },
+      orderBy: [{ date: "asc" }, { startTime: "asc" }],
+    }),
+    getCurrentWorkLimitSummary(userId),
   ]);
 
   return {
@@ -317,5 +419,23 @@ export async function getSyncSnapshot(userId: string, since?: string) {
     settings: [settings],
     budgets,
     reminders,
+    workEntries: workEntries.map((item) => ({
+      id: item.id,
+      companyId: item.companyId,
+      jobName: item.jobName,
+      date: toDateOnlyString(item.date),
+      startTime: toTimeOnlyString(item.startTime),
+      endTime: toTimeOnlyString(item.endTime),
+      breakMinutes: item.breakMinutes,
+      hourlyWage: Number(item.hourlyWage),
+      bonusType: item.bonusType,
+      bonusValue: item.bonusValue ? Number(item.bonusValue) : null,
+      isPublicHoliday: item.isPublicHoliday,
+      notes: item.notes,
+      updatedAt: item.updatedAt,
+      createdAt: item.createdAt,
+      syncedAt: item.updatedAt,
+    })),
+    workLimit: [workLimit],
   };
 }

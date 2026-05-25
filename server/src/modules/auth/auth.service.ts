@@ -4,41 +4,13 @@ import jwt from "jsonwebtoken";
 import type { SignOptions } from "jsonwebtoken";
 import { env } from "../../config/env.js";
 import { prisma } from "../../database/prisma.js";
+import { toPublicUser } from "../users/user.presenter.js";
 import { durationToMs } from "../../utils/duration.js";
 import { HttpError } from "../../utils/httpError.js";
-import type { LoginInput, RegisterInput, UpdateProfileInput } from "./auth.schemas.js";
+import type { RegisterUserInput } from "../users/users.schemas.js";
+import type { LoginInput, UpdateProfileInput } from "./auth.schemas.js";
 
 const passwordRounds = 12;
-
-function publicUser(user: {
-  id: string;
-  name: string;
-  email: string;
-  country: string;
-  studentStatus: string;
-  hourlyWageDefault: unknown;
-  currency: string;
-  avatarUrl?: string | null;
-  university?: string | null;
-  course?: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}) {
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    country: user.country,
-    studentStatus: user.studentStatus,
-    hourlyWageDefault: user.hourlyWageDefault,
-    currency: user.currency,
-    avatarUrl: user.avatarUrl ?? null,
-    university: user.university ?? null,
-    course: user.course ?? null,
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt
-  };
-}
 
 function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
@@ -68,7 +40,7 @@ export async function issueTokenPair(userId: string) {
   };
 }
 
-export async function registerUser(input: RegisterInput) {
+export async function registerUser(input: RegisterUserInput) {
   const existing = await prisma.user.findUnique({ where: { email: input.email } });
 
   if (existing) {
@@ -97,7 +69,7 @@ export async function registerUser(input: RegisterInput) {
   const tokens = await issueTokenPair(user.id);
 
   return {
-    user: publicUser(user),
+    user: toPublicUser(user),
     tokens
   };
 }
@@ -118,7 +90,7 @@ export async function loginUser(input: LoginInput) {
   const tokens = await issueTokenPair(user.id);
 
   return {
-    user: publicUser(user),
+    user: toPublicUser(user),
     tokens
   };
 }
@@ -142,7 +114,7 @@ export async function refreshToken(rawRefreshToken: string) {
   const tokens = await issueTokenPair(storedToken.userId);
 
   return {
-    user: publicUser(storedToken.user),
+    user: toPublicUser(storedToken.user),
     tokens
   };
 }
@@ -154,7 +126,7 @@ export async function getCurrentUser(userId: string) {
     throw new HttpError(404, "NOT_FOUND", "User not found");
   }
 
-  return publicUser(user);
+  return toPublicUser(user);
 }
 
 export async function updateUserProfile(userId: string, input: UpdateProfileInput) {
@@ -167,5 +139,5 @@ export async function updateUserProfile(userId: string, input: UpdateProfileInpu
     }
   });
 
-  return publicUser(user);
+  return toPublicUser(user);
 }

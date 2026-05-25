@@ -73,6 +73,8 @@ export type MoreStackParamList = {
 export type MainTabParamList = {
   Dashboard: undefined;
   Work: undefined;
+  Calendar: undefined;
+  Settings: undefined;
   Money: undefined;
   Expenses: undefined;
   Tasks: undefined;

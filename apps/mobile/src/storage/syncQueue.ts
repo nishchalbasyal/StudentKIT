@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiClient } from "../api/apiClient";
+import { localDb } from "./localDb";
 import { useAuthStore } from "../store/authStore";
 
 export type SyncOperation = "CREATE" | "UPDATE" | "DELETE";
@@ -117,13 +118,18 @@ export const syncQueue = {
 
     for (const item of pending) {
       try {
-        await apiClient.post("/sync", {
+        const response = await apiClient.post("/sync", {
           entityType: item.entityType,
           entityId: item.entityId,
           operation: item.operation,
           payload: item.payload,
           updatedAt: item.updatedAt,
         });
+        if (item.entityType === "workEntry" && item.operation !== "DELETE") {
+          const syncedAt =
+            response.data?.data?.syncedAt ?? new Date().toISOString();
+          await localDb.update("workEntries", item.entityId, { syncedAt });
+        }
         await this.markSynced(item.id);
         processed += 1;
       } catch (error) {

@@ -1,5 +1,8 @@
 import { create } from "zustand";
-import { getOnboardingPreferences, saveOnboardingPreferences } from "../storage/settingsStorage";
+import {
+  getOnboardingPreferences,
+  saveOnboardingPreferences,
+} from "../storage/settingsStorage";
 import type { AuthResponse, User } from "../types/auth.types";
 import { deleteAuthItem, getAuthItem, setAuthItem } from "../utils/authStorage";
 
@@ -49,14 +52,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       }
 
+      const shouldNormalizeGuestMode = !token && !onboarding.completed;
+      if (shouldNormalizeGuestMode) {
+        await saveOnboardingPreferences({
+          completed: true,
+          useWithoutLogin: true,
+        });
+      }
+
       set({
         user,
         token,
         refreshToken,
         isHydrated: true,
         isAuthenticated: Boolean(token && user),
-        isGuest: onboarding.completed && onboarding.useWithoutLogin && !token,
-        hasCompletedOnboarding: onboarding.completed,
+        isGuest: !token,
+        hasCompletedOnboarding: true,
       });
     } catch {
       set({
@@ -65,8 +76,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         refreshToken: null,
         isHydrated: true,
         isAuthenticated: false,
-        isGuest: false,
-        hasCompletedOnboarding: false,
+        isGuest: true,
+        hasCompletedOnboarding: true,
       });
     }
   },
@@ -74,7 +85,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await Promise.all([
       setAuthItem(accessTokenKey, session.tokens.accessToken),
       setAuthItem(refreshTokenKey, session.tokens.refreshToken),
-      setAuthItem(userKey, JSON.stringify(session.user))
+      setAuthItem(userKey, JSON.stringify(session.user)),
     ]);
 
     set({
@@ -86,7 +97,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isGuest: false,
       hasCompletedOnboarding: true,
     });
-    await saveOnboardingPreferences({ completed: true, useWithoutLogin: false });
+    await saveOnboardingPreferences({
+      completed: true,
+      useWithoutLogin: false,
+    });
   },
   continueAsGuest: async () => {
     await saveOnboardingPreferences({ completed: true, useWithoutLogin: true });
@@ -104,7 +118,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await Promise.all([
       deleteAuthItem(accessTokenKey),
       deleteAuthItem(refreshTokenKey),
-      deleteAuthItem(userKey)
+      deleteAuthItem(userKey),
     ]);
 
     set({
@@ -129,5 +143,5 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isAuthenticated: Boolean(get().token && user),
       isGuest: Boolean(!get().token && get().hasCompletedOnboarding),
     });
-  }
+  },
 }));
